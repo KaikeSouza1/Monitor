@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor de Replicação - Pedroso Informática</title>
+    <title>Monitor de Replicação</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,128 +11,115 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0f172a; /* slate-900 */
+            background-color: #1a202c; /* bg-gray-900 */
         }
-        .result-box::-webkit-scrollbar { width: 8px; height: 8px; }
-        .result-box::-webkit-scrollbar-track { background: #1e293b; }
-        .result-box::-webkit-scrollbar-thumb { background-color: #475569; border-radius: 20px; }
-        .loader {
-            border-top-color: #22d3ee; /* cyan-400 */
+        .results-box {
+            background-color: #0d1117;
+            border: 1px solid #30363d;
+            height: 60vh;
+            max-height: 700px;
+        }
+        .btn-custom {
+            background-color: #1f6feb;
+            transition: background-color 0.3s ease;
+        }
+        .btn-custom:hover {
+            background-color: #388bfd;
+        }
+        .spinner {
+            border-top-color: #388bfd;
             animation: spin 1s linear infinite;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .tag-ok { color: #28a745; }
+        .tag-aviso { color: #ffc107; }
+        .tag-erro { color: #dc3545; }
+        .tag-header { color: #17a2b8; }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-200 flex items-center justify-center min-h-screen p-4">
+<body class="text-gray-200">
+    <div class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-5xl">
+            <header class="text-center mb-8">
+                <h1 class="text-4xl md:text-5xl font-bold text-white mb-2">Monitor de Replicação</h1>
+                <p class="text-lg text-gray-400">Status das replicações PostgreSQL - Pedroso Informática</p>
+                <p class="text-md text-gray-500 mt-2">Verifica a data da última nota na tabela 'notas' (coluna 'datano').</p>
+            </header>
 
-    <main class="w-full max-w-5xl mx-auto bg-slate-800/50 rounded-2xl shadow-2xl shadow-black/30 border border-slate-700">
-        <div class="p-6 sm:p-8 text-center">
-            <h1 class="text-3xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-sky-500">
-                Monitor de Replicação
-            </h1>
-            <p class="text-slate-400 mt-2">Selecione o método de verificação para os bancos de dados PostgreSQL.</p>
-        </div>
-
-        <!-- Botões de Ação -->
-        <div class="px-6 sm:px-8 py-6 border-y border-slate-700 bg-slate-900/40">
-            <div id="action-buttons" class="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <!-- Botão para Verificar Status da Replicação Lógica -->
-                <button id="btn-check-status" class="w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-sky-600 hover:bg-sky-500 disabled:bg-sky-700 disabled:opacity-60 disabled:cursor-wait text-white font-semibold rounded-lg shadow-md transition-all duration-300 transform hover:scale-105">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <span>Verificar Status da Replicação</span>
-                </button>
-                <!-- Botão para Verificar por Última Nota -->
-                <button id="btn-check-notes" class="w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-teal-600 hover:bg-teal-500 disabled:bg-teal-700 disabled:opacity-60 disabled:cursor-wait text-white font-semibold rounded-lg shadow-md transition-all duration-300 transform hover:scale-105">
-                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                    <span>Verificar por Última Nota</span>
+            <div class="flex justify-center mb-6">
+                <button id="checkNotesBtn" class="btn-custom text-white font-semibold py-3 px-6 rounded-lg shadow-lg flex items-center space-x-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    <span>Verificar Última Nota</span>
                 </button>
             </div>
-        </div>
 
-        <!-- Área de Resultados -->
-        <div class="p-6 sm:p-8">
-            <div id="results-container" class="relative">
-                <pre id="results" class="result-box w-full h-96 bg-slate-900 rounded-lg p-4 font-mono text-sm overflow-auto border border-slate-700 transition-opacity duration-300 opacity-50"></pre>
-                <div id="loader-overlay" class="hidden absolute inset-0 bg-slate-900/80 rounded-lg flex-col items-center justify-center">
-                    <div class="loader w-12 h-12 rounded-full border-4 border-slate-600"></div>
-                    <p class="mt-4 font-semibold text-slate-300">Verificando...</p>
+            <div id="resultsContainer" class="results-box font-mono text-sm p-4 rounded-lg overflow-y-auto whitespace-pre">
+                <span class="text-gray-500">Aguardando verificação...</span>
+            </div>
+            
+            <div id="loadingIndicator" class="text-center mt-4 text-gray-400 hidden">
+                <div class="flex items-center justify-center">
+                    <div class="spinner h-5 w-5 rounded-full border-2 border-transparent border-t-blue-500 mr-2"></div>
+                    <span id="loadingText"></span>
                 </div>
             </div>
-            <p id="error-message" class="text-center text-red-400 mt-4 font-medium"></p>
-            <p id="summary" class="text-center text-slate-500 mt-4 text-xs"></p>
+
+            <footer class="text-center mt-4 text-xs text-gray-600">
+                <p id="footerText"></p>
+            </footer>
         </div>
-    </main>
+    </div>
 
     <script>
-        const btnCheckStatus = document.getElementById('btn-check-status');
-        const btnCheckNotes = document.getElementById('btn-check-notes');
-        const resultsEl = document.getElementById('results');
-        const errorEl = document.getElementById('error-message');
-        const summaryEl = document.getElementById('summary');
-        const loaderOverlay = document.getElementById('loader-overlay');
-        const actionButtons = [btnCheckStatus, btnCheckNotes];
+        const checkNotesBtn = document.getElementById('checkNotesBtn');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const loadingText = document.getElementById('loadingText');
+        const footerText = document.getElementById('footerText');
 
-        const colors = {
-            ok: 'text-green-400',
-            erro: 'text-red-400',
-            aviso: 'text-yellow-400',
-            header: 'text-cyan-400 font-bold',
-            final: 'text-sky-400 font-bold'
-        };
+        checkNotesBtn.addEventListener('click', () => fetchData());
 
-        const runCheck = async (mode) => {
-            actionButtons.forEach(btn => btn.disabled = true);
-            loaderOverlay.classList.remove('hidden');
-            loaderOverlay.classList.add('flex');
-            resultsEl.innerHTML = 'Aguardando resposta do servidor...';
-            resultsEl.classList.add('opacity-50');
-            errorEl.textContent = '';
-            summaryEl.textContent = '';
-            const startTime = performance.now();
+        async function fetchData() {
+            resultsContainer.innerHTML = '<span class="text-gray-500">Iniciando verificação...</span>';
+            loadingText.textContent = `Verificando...`;
+            loadingIndicator.classList.remove('hidden');
+            checkNotesBtn.disabled = true;
+            checkNotesBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            footerText.textContent = '';
+            
+            const startTime = Date.now();
 
             try {
-                const response = await fetch(`/api/check_replication?mode=${mode}`);
+                // A chamada agora é direta, sem o parâmetro 'mode'
+                const response = await fetch(`/api/check_replication`);
                 if (!response.ok) {
                     throw new Error(`Erro na API: ${response.statusText}`);
                 }
                 const data = await response.json();
-
-                resultsEl.innerHTML = '';
                 
-                const headerSpan = document.createElement('span');
-                headerSpan.textContent = data.header + '\n\n';
-                headerSpan.className = colors.header;
-                resultsEl.appendChild(headerSpan);
-                
+                let output = `<div class="tag-header">${data.header}</div>\n\n`;
                 data.results.forEach(item => {
-                    const lineSpan = document.createElement('span');
-                    lineSpan.textContent = item.msg + '\n';
-                    lineSpan.className = colors[item.tag] || 'text-slate-400';
-                    resultsEl.appendChild(lineSpan);
+                    const safeMsg = item.msg.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    output += `<div class="tag-${item.tag}">${safeMsg}</div>`;
                 });
 
-                const finalSpan = document.createElement('span');
-                finalSpan.textContent = '\n🏁 Verificação concluída.';
-                finalSpan.className = colors.final;
-                resultsEl.appendChild(finalSpan);
+                resultsContainer.innerHTML = output;
 
-            } catch (err) {
-                console.error("Falha na verificação:", err);
-                errorEl.textContent = `Erro durante a verificação: ${err.message}`;
+            } catch (error) {
+                resultsContainer.innerHTML = `<div class="tag-erro">Erro durante a verificação: ${error.message}</div>`;
             } finally {
-                const endTime = performance.now();
+                const endTime = Date.now();
                 const duration = ((endTime - startTime) / 1000).toFixed(2);
-                summaryEl.textContent = `Verificação concluída em ${duration} segundos.`;
-                actionButtons.forEach(btn => btn.disabled = false);
-                loaderOverlay.classList.add('hidden');
-                loaderOverlay.classList.remove('flex');
-                resultsEl.classList.remove('opacity-50');
-                resultsEl.scrollTop = resultsEl.scrollHeight;
+                loadingIndicator.classList.add('hidden');
+                checkNotesBtn.disabled = false;
+                checkNotesBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                footerText.textContent = `Verificação concluída em ${duration} segundos.`;
             }
-        };
-
-        btnCheckStatus.addEventListener('click', () => runCheck('status'));
-        btnCheckNotes.addEventListener('click', () => runCheck('notes'));
+        }
     </script>
 </body>
 </html>

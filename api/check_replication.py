@@ -2,7 +2,7 @@
 import os
 import psycopg2
 from datetime import datetime, timezone
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # A Vercel exige que a aplicação Flask se chame 'app'
@@ -45,7 +45,7 @@ EMPRESAS_POR_PORTA = {
     21088: "CESTAO DO CARLAO", 21089: "LOJA TOP - IPV4", 21090: "CAMPEIRA AGROVETERINARIA LTDA",
     21091: "FRAN PRESENTES", 21092: "LOJA EVE", 21093: "AGRO DUDU", 21094: "HOTEL SANTANA",
     21095: "TOKA SOM",
-    21096: "EMPRESA PENDente 21096",
+    21096: "EMPRESA PENDENTE 21096",
     21097: "SAWAYA", 21098: "METAL MINOZZO", 21099: "X BURGUER",
     21100: "LL PRESENTES", 21101: "LOJA DA MARIA", 21102: "OTICA HELENITA", 21103: "ESPACO CASA DO SOL",
     21104: "FALKS CONFECCOES", 21105: "CASA DO CEREAL", 21106: "LAURA FLORES E PRESENTES",
@@ -116,53 +116,11 @@ def verificar_por_nota(porta):
         return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Falha ao consultar a tabela 'notas'.", "tag": "erro"}
 
 
-def verificar_status_replicacao(porta):
-    """Verifica o status da replicação lógica usando a mesma regra do Windev."""
-    conn_details = get_connection_details(porta)
-    nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
-    query = "SELECT pid, received_lsn, latest_end_lsn FROM pg_stat_subscription;"
-
-    try:
-        with psycopg2.connect(**conn_details, connect_timeout=5) as conn:
-            with conn.cursor() as cur:
-                cur.execute(query)
-                result = cur.fetchone()
-
-        # Lógica rigorosa que espelha o Windev:
-        # Só é 'OK' se o processo (pid) está ativo E já recebeu ou aplicou dados.
-        is_replicating = False
-        if result:
-            pid, received_lsn, latest_end_lsn = result
-            if pid is not None and pid > 0 and (received_lsn is not None or latest_end_lsn is not None):
-                is_replicating = True
-
-        if is_replicating:
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Replicação Ativa."
-            tag = "ok"
-        else:
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Replicação Inativa ou Falha."
-            tag = "erro"
-        
-        return {"porta": porta, "msg": msg, "tag": tag}
-
-    except psycopg2.OperationalError:
-        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}
-    except Exception as e:
-        error_msg = str(e).strip().replace('\n', ' ')
-        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: {error_msg}", "tag": "erro"}
-
-
 @app.route('/api/check_replication', methods=['GET'])
 def check_replication_handler():
-    mode = request.args.get('mode', 'status') # Default para 'status'
-    
-    if mode == 'notes':
-        target_function = verificar_por_nota
-        hoje = datetime.now(timezone.utc).date()
-        header = f"🔍 Verificando por Última Nota... (Data de hoje: {hoje.strftime('%d/%m/%Y')})"
-    else: # mode == 'status'
-        target_function = verificar_status_replicacao
-        header = f"🔍 Verificando Status da Replicação Lógica... (Horário: {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')})"
+    target_function = verificar_por_nota
+    hoje = datetime.now(timezone.utc).date()
+    header = f"🔍 Verificando por Última Nota... (Data de hoje: {hoje.strftime('%d/%m/%Y')})"
 
     portas_ordenadas = sorted(EMPRESAS_POR_PORTA.keys())
     
