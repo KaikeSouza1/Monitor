@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # A Vercel exige que a aplicação Flask se chame 'app'
 app = Flask(__name__)
 
-# --- Dicionários de Configuração (mesmos de antes) ---
+# --- Dicionários de Configuração ---
 EMPRESAS_POR_PORTA = {
     21001: "CENTER MALHAS", 21002: "SPEED COPIAS", 21003: "MACO MATERIAIS",
     21004: "NUTRI UNIÃO UVA", 21005: "NUTRI UNIÃO PU", 21006: "ATACADÃO MATERIAIS DE CONSTRUÇÃO",
@@ -110,63 +110,56 @@ def verificar_por_nota(porta):
             tag = "ok"
         return {"porta": porta, "msg": msg, "tag": tag}
 
-    except Exception:
+    except psycopg2.OperationalError:
         return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}
+    except Exception:
+        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Falha ao consultar a tabela 'notas'.", "tag": "erro"}
 
-def verificar_por_lag(porta):
+
+def verificar_status_replicacao(porta):
+    """Verifica o status da replicação lógica usando pg_stat_subscription."""
     conn_details = get_connection_details(porta)
     nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
-    
-    AVISO_MINUTOS = 60
-    ERRO_MINUTOS = 240
+    query = "SELECT pid, received_lsn, latest_end_lsn FROM pg_stat_subscription;"
 
     try:
         with psycopg2.connect(**conn_details, connect_timeout=5) as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT pg_last_xact_replay_timestamp();")
-                last_replay_timestamp = cur.fetchone()[0]
+                cur.execute(query)
+                result = cur.fetchone()
 
-                # --- LÓGICA DE FALLBACK ---
-                if last_replay_timestamp is None:
-                    cur.execute("SELECT status FROM pg_stat_wal_receiver;")
-                    receiver_status = cur.fetchone()
-                    if receiver_status and receiver_status[0] == 'streaming':
-                        # Se está conectado e recebendo, está OK, apenas ocioso.
-                        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Conectado e aguardando dados (ocioso)", "tag": "ok"}
-                    else:
-                        # Se não há timestamp e não está conectado, é um erro.
-                        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Desconectado do servidor principal.", "tag": "erro"}
-                # --- FIM DA LÓGICA DE FALLBACK ---
-
-        now_utc = datetime.now(timezone.utc)
-        lag = now_utc - last_replay_timestamp
-        lag_minutes = lag.total_seconds() / 60
-
-        if lag_minutes > ERRO_MINUTOS:
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Atraso de {int(lag_minutes // 60)}h e {int(lag_minutes % 60)}min"
-            tag = "erro"
-        elif lag_minutes > AVISO_MINUTOS:
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ⚠️ AVISO: Atraso de {int(lag_minutes)} minutos"
-            tag = "aviso"
+        if result and result[0] is not None and result[0] > 0:
+            pid, received_lsn, latest_end_lsn = result
+            
+            if received_lsn is not None and latest_end_lsn is not None and received_lsn != latest_end_lsn:
+                msg = f"[PORTA {porta}] {nome_empresa:<45} | ⚠️ AVISO: Sincronizando (lag detectado)."
+                tag = "aviso"
+            else:
+                msg = f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Replicação ativa e sincronizada."
+                tag = "ok"
         else:
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Replicação com {int(lag_minutes)} min de atraso"
-            tag = "ok"
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Assinatura de replicação não encontrada ou inativa."
+            tag = "erro"
+        
         return {"porta": porta, "msg": msg, "tag": tag}
 
-    except Exception:
+    except psycopg2.OperationalError:
         return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}
+    except Exception:
+        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Não é replicação lógica ou falha na consulta.", "tag": "erro"}
+
 
 @app.route('/api/check_replication', methods=['GET'])
 def check_replication_handler():
-    mode = request.args.get('mode', 'notes')
+    mode = request.args.get('mode', 'status') # Default para 'status'
     
-    if mode == 'lag':
-        target_function = verificar_por_lag
-        header = f"🔍 Verificando Lag de Replicação... (Horário Atual: {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')})"
-    else:
+    if mode == 'notes':
         target_function = verificar_por_nota
         hoje = datetime.now(timezone.utc).date()
         header = f"🔍 Verificando por Última Nota... (Data de hoje: {hoje.strftime('%d/%m/%Y')})"
+    else: # mode == 'status'
+        target_function = verificar_status_replicacao
+        header = f"🔍 Verificando Status da Replicação Lógica... (Horário: {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')})"
 
     portas_ordenadas = sorted(EMPRESAS_POR_PORTA.keys())
     

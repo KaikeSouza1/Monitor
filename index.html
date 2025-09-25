@@ -13,24 +13,14 @@
             font-family: 'Inter', sans-serif;
             background-color: #0f172a; /* slate-900 */
         }
-        .result-box::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        .result-box::-webkit-scrollbar-track {
-            background: #1e293b; /* slate-800 */
-        }
-        .result-box::-webkit-scrollbar-thumb {
-            background-color: #475569; /* slate-600 */
-            border-radius: 20px;
-        }
+        .result-box::-webkit-scrollbar { width: 8px; height: 8px; }
+        .result-box::-webkit-scrollbar-track { background: #1e293b; }
+        .result-box::-webkit-scrollbar-thumb { background-color: #475569; border-radius: 20px; }
         .loader {
             border-top-color: #22d3ee; /* cyan-400 */
             animation: spin 1s linear infinite;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-200 flex items-center justify-center min-h-screen p-4">
@@ -46,15 +36,15 @@
         <!-- Botões de Ação -->
         <div class="px-6 sm:px-8 py-6 border-y border-slate-700 bg-slate-900/40">
             <div id="action-buttons" class="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <!-- Botão para Verificar por Última Nota -->
-                <button id="btn-check-notes" class="w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-sky-600 hover:bg-sky-500 disabled:bg-sky-700 disabled:opacity-60 disabled:cursor-wait text-white font-semibold rounded-lg shadow-md transition-all duration-300 transform hover:scale-105">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                    <span>Verificar por Última Nota</span>
+                <!-- Botão para Verificar Status da Replicação Lógica -->
+                <button id="btn-check-status" class="w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-sky-600 hover:bg-sky-500 disabled:bg-sky-700 disabled:opacity-60 disabled:cursor-wait text-white font-semibold rounded-lg shadow-md transition-all duration-300 transform hover:scale-105">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span>Verificar Status da Replicação</span>
                 </button>
-                <!-- Botão para Verificar Lag de Replicação -->
-                <button id="btn-check-lag" class="w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-cyan-700 disabled:opacity-60 disabled:cursor-wait text-white font-semibold rounded-lg shadow-md transition-all duration-300 transform hover:scale-105">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <span>Verificar Lag de Replicação</span>
+                <!-- Botão para Verificar por Última Nota -->
+                <button id="btn-check-notes" class="w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-teal-600 hover:bg-teal-500 disabled:bg-teal-700 disabled:opacity-60 disabled:cursor-wait text-white font-semibold rounded-lg shadow-md transition-all duration-300 transform hover:scale-105">
+                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    <span>Verificar por Última Nota</span>
                 </button>
             </div>
         </div>
@@ -74,25 +64,24 @@
     </main>
 
     <script>
+        const btnCheckStatus = document.getElementById('btn-check-status');
         const btnCheckNotes = document.getElementById('btn-check-notes');
-        const btnCheckLag = document.getElementById('btn-check-lag');
         const resultsEl = document.getElementById('results');
         const errorEl = document.getElementById('error-message');
         const summaryEl = document.getElementById('summary');
         const loaderOverlay = document.getElementById('loader-overlay');
+        const actionButtons = [btnCheckStatus, btnCheckNotes];
 
         const colors = {
             ok: 'text-green-400',
-            aviso: 'text-yellow-400',
             erro: 'text-red-400',
+            aviso: 'text-yellow-400',
             header: 'text-cyan-400 font-bold',
             final: 'text-sky-400 font-bold'
         };
 
         const runCheck = async (mode) => {
-            // 1. Iniciar estado de carregamento
-            btnCheckNotes.disabled = true;
-            btnCheckLag.disabled = true;
+            actionButtons.forEach(btn => btn.disabled = true);
             loaderOverlay.classList.remove('hidden');
             loaderOverlay.classList.add('flex');
             resultsEl.innerHTML = 'Aguardando resposta do servidor...';
@@ -102,23 +91,19 @@
             const startTime = performance.now();
 
             try {
-                // 2. Fazer a chamada à API com o modo selecionado
                 const response = await fetch(`/api/check_replication?mode=${mode}`);
                 if (!response.ok) {
                     throw new Error(`Erro na API: ${response.statusText}`);
                 }
                 const data = await response.json();
 
-                // 3. Renderizar os resultados
-                resultsEl.innerHTML = ''; // Limpar antes de adicionar novo conteúdo
+                resultsEl.innerHTML = '';
                 
-                // Adicionar cabeçalho
                 const headerSpan = document.createElement('span');
                 headerSpan.textContent = data.header + '\n\n';
                 headerSpan.className = colors.header;
                 resultsEl.appendChild(headerSpan);
                 
-                // Adicionar resultados das portas
                 data.results.forEach(item => {
                     const lineSpan = document.createElement('span');
                     lineSpan.textContent = item.msg + '\n';
@@ -126,32 +111,28 @@
                     resultsEl.appendChild(lineSpan);
                 });
 
-                // Adicionar mensagem final
                 const finalSpan = document.createElement('span');
                 finalSpan.textContent = '\n🏁 Verificação concluída.';
                 finalSpan.className = colors.final;
                 resultsEl.appendChild(finalSpan);
 
-
             } catch (err) {
                 console.error("Falha na verificação:", err);
-                errorEl.textContent = 'Erro durante a verificação. Verifique o console para mais detalhes.';
+                errorEl.textContent = `Erro durante a verificação: ${err.message}`;
             } finally {
-                // 4. Finalizar estado de carregamento
                 const endTime = performance.now();
                 const duration = ((endTime - startTime) / 1000).toFixed(2);
                 summaryEl.textContent = `Verificação concluída em ${duration} segundos.`;
-                btnCheckNotes.disabled = false;
-                btnCheckLag.disabled = false;
+                actionButtons.forEach(btn => btn.disabled = false);
                 loaderOverlay.classList.add('hidden');
                 loaderOverlay.classList.remove('flex');
                 resultsEl.classList.remove('opacity-50');
-                resultsEl.scrollTop = resultsEl.scrollHeight; // Rolar para o final
+                resultsEl.scrollTop = resultsEl.scrollHeight;
             }
         };
 
+        btnCheckStatus.addEventListener('click', () => runCheck('status'));
         btnCheckNotes.addEventListener('click', () => runCheck('notes'));
-        btnCheckLag.addEventListener('click', () => runCheck('lag'));
     </script>
 </body>
 </html>
