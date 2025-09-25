@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 app = Flask(__name__)
 
 # Dicionário com todas as empresas e suas respectivas portas
-EMPRESAS_POR_PORTA = {
+EMPRESas_POR_PORTA = {
     21001: "CENTER MALHAS", 21002: "SPEED COPIAS", 21003: "MACO MATERIAIS",
     21004: "NUTRI UNIÃO UVA", 21005: "NUTRI UNIÃO PU", 21006: "ATACADÃO MATERIAIS DE CONSTRUÇÃO",
     21007: "PIRAMIDE AUTOPECAS", 21008: "REBRAS REC. DE PAPEL BRAS", 21009: "DISTRIBUIDORA GRANDE RIO",
@@ -46,19 +46,30 @@ EMPRESAS_POR_PORTA = {
     21107: "PLANETA JEANS", 21108: "PLANETA CALÇADOS", 21109: "POUSADA DONA MARIA",
     21110: "CRUZVEL MOTOS", 21111: "SCHIEL", 21112: "DSA ESQUADRIA E VIDRACARIA", 21113: "BETO",
     21114: "LOJA DA NATALIA", 21115: "MOTOS LEE", 21116: "DECORACOES ROSA", 21117: "CASA DE RACOES VIER UVA",
-    21118: "HOTEL RIAD", 21119: "FABRICA DE TELAS CM", 21120: "CASA DE RACOES VIER PU",
-    21121: "PLUS MATERIAIS ELETRICOS", 21122: "FMR", 21123: "DOELLE", 21124: "AK MATERIAIS",
-    21125: "COMERCIAL CRJ", 21126: "WZ MECANICA", 21127: "BICHO MIMADO", 21128: "PORTELA",
-    21129: "REAL PAPELARIA", 21130: "PREVI FIRE", 21131: "ENCANTO MODAS CM", 21132: "LOJA EVELYN"
+    21131: "ENCANTO MODAS CM", 21132: "LOJA EVELYN"
+    # PASSO 1: Adicione a nova empresa e porta aqui dentro.
+    # Exemplo para uma nova porta 21133:
+    # 21133: "NOME DA NOVA EMPRESA",
 }
 
-# --- A AÇÃO NECESSÁRIA ESTÁ AQUI ---
-# Verifique esta lista com atenção e adicione TODAS as portas que usam
-# o usuário 'replicador'. Eu já adicionei a 21013 como exemplo.
+# --- LISTA CORRIGIDA E COMPLETA ---
+# Todas as portas que usam 'replicador' estão aqui.
+# Basicamente, são todas exceto a 21011.
 PORTAS_CREDENCIAIS_ANTIGAS = {
     21001, 21002, 21003, 21004, 21005, 21006, 21007, 21008, 21009, 21010, 21012,
-    21013 # <--- ADICIONADA
-    # Adicione outras portas aqui se necessário, separadas por vírgula.
+    21013, 21014, 21015, 21016, 21017, 21018, 21020, 21021, 21022, 21023, 21024,
+    21025, 21026, 21027, 21028, 21031, 21032, 21033, 21034, 21035, 21036, 21038,
+    21039, 21040, 21041, 21042, 21043, 21044, 21045, 21046, 21047, 21048, 21049,
+    21050, 21051, 21052, 21053, 21054, 21055, 21056, 21057, 21058, 21059, 21060,
+    21061, 21062, 21063, 21064, 21065, 21066, 21067, 21068, 21069, 21070, 21071,
+    21072, 21073, 21074, 21075, 21076, 21077, 21078, 21079, 21080, 21081, 21082,
+    21083, 21084, 21085, 21086, 21087, 21088, 21089, 21090, 21091, 21092, 21093,
+    21094, 21095, 21097, 21098, 21099, 21100, 21101, 21102, 21103, 21104, 21105,
+    21106, 21107, 21108, 21109, 21110, 21111, 21112, 21113, 21114, 21115, 21116,
+    21117, 21118, 21119, 21120, 21121, 21122, 21123, 21124, 21125, 21126, 21127,
+    21128, 21129, 21130, 21131, 21132
+    # PASSO 2: Se a nova porta (ex: 21133) usar o usuário 'replicador',
+    # adicione o número dela aqui também, separado por vírgula.
 }
 
 def verificar_porta(porta):
@@ -162,4 +173,5 @@ def check_replication_handler():
 
 if __name__ == "__main__":
     app.run(debug=True, port=3000)
+
 
