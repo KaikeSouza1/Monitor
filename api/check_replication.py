@@ -45,9 +45,9 @@ EMPRESAS_POR_PORTA = {
     21088: "CESTAO DO CARLAO", 21089: "LOJA TOP - IPV4", 21090: "CAMPEIRA AGROVETERINARIA LTDA",
     21091: "FRAN PRESENTES", 21092: "LOJA EVE", 21093: "AGRO DUDU", 21094: "HOTEL SANTANA",
     21095: "TOKA SOM",
-    21096: "EMPRESA PENDENTE 21096",
+    21096: "EMPRESA PENDente 21096",
     21097: "SAWAYA", 21098: "METAL MINOZZO", 21099: "X BURGUER",
-    21100: "LL PRESENTES", 2101: "LOJA DA MARIA", 21102: "OTICA HELENITA", 21103: "ESPACO CASA DO SOL",
+    21100: "LL PRESENTES", 21101: "LOJA DA MARIA", 21102: "OTICA HELENITA", 21103: "ESPACO CASA DO SOL",
     21104: "FALKS CONFECCOES", 21105: "CASA DO CEREAL", 21106: "LAURA FLORES E PRESENTES",
     21107: "PLANETA JEANS", 21108: "PLANETA CALÇADOS", 21109: "POUSADA DONA MARIA",
     21110: "CRUZVEL MOTOS", 21111: "SCHIEL", 21112: "DSA ESQUADRIA E VIDRACARIA", 21113: "BETO",
@@ -117,7 +117,7 @@ def verificar_por_nota(porta):
 
 
 def verificar_status_replicacao(porta):
-    """Verifica o status da replicação lógica usando pg_stat_subscription."""
+    """Verifica o status da replicação lógica usando a mesma regra do Windev."""
     conn_details = get_connection_details(porta)
     nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
     query = "SELECT pid, received_lsn, latest_end_lsn FROM pg_stat_subscription;"
@@ -128,7 +128,8 @@ def verificar_status_replicacao(porta):
                 cur.execute(query)
                 result = cur.fetchone()
 
-        # Nova lógica, espelhando o Windev: o processo deve estar ativo E ter recebido/aplicado dados.
+        # Lógica rigorosa que espelha o Windev:
+        # Só é 'OK' se o processo (pid) está ativo E já recebeu ou aplicou dados.
         is_replicating = False
         if result:
             pid, received_lsn, latest_end_lsn = result
@@ -136,23 +137,19 @@ def verificar_status_replicacao(porta):
                 is_replicating = True
 
         if is_replicating:
-            pid, received_lsn, latest_end_lsn = result
-            if received_lsn is not None and latest_end_lsn is not None and received_lsn != latest_end_lsn:
-                msg = f"[PORTA {porta}] {nome_empresa:<45} | ⚠️ AVISO: Sincronizando (lag detectado)."
-                tag = "aviso"
-            else:
-                msg = f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Replicação ativa e sincronizada."
-                tag = "ok"
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Replicação Ativa."
+            tag = "ok"
         else:
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Assinatura inativa ou sem fluxo de dados."
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Replicação Inativa ou Falha."
             tag = "erro"
         
         return {"porta": porta, "msg": msg, "tag": tag}
 
     except psycopg2.OperationalError:
         return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}
-    except Exception:
-        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Não é replicação lógica ou falha na consulta.", "tag": "erro"}
+    except Exception as e:
+        error_msg = str(e).strip().replace('\n', ' ')
+        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: {error_msg}", "tag": "erro"}
 
 
 @app.route('/api/check_replication', methods=['GET'])
