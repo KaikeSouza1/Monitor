@@ -1,18 +1,24 @@
 {
-"builds": [
-{
-"src": "api/check_replication.py",
-"use": "@vercel/python"
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/check_replication.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/check_replication",
+      "dest": "api/check_replication.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
 }
-],
-"routes": [
-{
-"src": "/api/check_replication",
-"dest": "api/check_replication.py"
-},
-{
-"src": "/(.*)",
-"dest": "index.html"
-}
-]
-}
+
