@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 import os
 import psycopg2
-from datetime import date
-from flask import Flask, jsonify
+from datetime import datetime, timezone
+from flask import Flask, jsonify, request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # A Vercel exige que a aplicação Flask se chame 'app'
 app = Flask(__name__)
 
-# Dicionário com todas as empresas e suas respectivas portas - AGORA COMPLETO
+# --- Dicionários de Configuração ---
 EMPRESAS_POR_PORTA = {
     21001: "CENTER MALHAS", 21002: "SPEED COPIAS", 21003: "MACO MATERIAIS",
     21004: "NUTRI UNIÃO UVA", 21005: "NUTRI UNIÃO PU", 21006: "ATACADÃO MATERIAIS DE CONSTRUÇÃO",
@@ -16,15 +16,15 @@ EMPRESAS_POR_PORTA = {
     21010: "NOVA AGROPECUARIA", 21011: "CRIATIVE INFORMATICA", 21012: "TECNOHOUSE INFORMATICA",
     21013: "CASA DE CARNES ROSSA", 21014: "RETIVALLE RETIFICA", 21015: "SPECIALE PORTAS",
     21016: "MD GRAZZIOTIN MATERIAIS ELETRICOS LTDA", 21017: "MOTO PECAS DOS COBRAS", 21018: "LUBRIFICAR",
-    21019: "EMPRESA PENDENTE 21019", # ADICIONADO
+    21019: "EMPRESA PENDENTE 21019",
     21020: "ROSSA INDUSTRIA E COMERCIO DE CARNES", 21021: "CANTINHO DA CRIANCA", 21022: "SERGIO ANDRUKIU/LUKITO",
     21023: "MADEIREIRA WTK", 21024: "AGRO VALE - 5253", 21025: "AGRO VALE - 5254",
     21026: "RESTAURANTE E LANCHONETE ROSSA", 21027: "TOCA DO JAVALI", 21028: "JAVALI ARMAS",
-    21029: "EMPRESA PENDENTE 21029", # ADICIONADO
-    21030: "EMPRESA PENDENTE 21030", # ADICIONADO
+    21029: "EMPRESA PENDENTE 21029",
+    21030: "EMPRESA PENDENTE 21030",
     21031: "DALGALLO MUDAS FLORESTAIS", 21032: "AUTO TINTAS AUTOMOTIVAS", 21033: "AUTO TINTAS FILIAL",
     21034: "GALENICA MANIPULACAO", 21035: "CENTRAL DO GESSO", 21036: "VIDRACARIA AVENIDA",
-    21037: "EMPRESA PENDENTE 21037", # ADICIONADO
+    21037: "EMPRESA PENDENTE 21037",
     21038: "RECANTO BELA VISTA", 21039: "PONTO DA MODA", 21040: "MS COMERCIO DE PNEUS",
     21041: "MS MANUTENCAO DE VEICULOS", 21042: "MERCADO BOM GOSTO", 21043: "AGRO TICO",
     21044: "RESTAURANTE MACIEL", 21045: "AGRO VALDIR FILIAL", 21046: "CHOCOLATE E CIA",
@@ -41,11 +41,11 @@ EMPRESAS_POR_PORTA = {
     21075: "ELETROVIGILANCIA SERVICOS LTDA", 21076: "LOJAO DO CARLAO", 21077: "AGRO SAO LUIZ - IPV6",
     21078: "INOX BRIL", 21079: "ESQUADRIAS DE METAL L S LTDA", 21080: "LOJA VIPP - IPV6",
     21081: "CITA", 21082: "LOJA EMMY", 21083: "MASSAS NENA", 21084: "DISTRIBUIDORA OLHO D' AGUA",
-    21085: "AUTO ELETRICA DE LIMA", 21086: "BICICLETARIA VITORIA", 21087: "RESTAURANTE E LANCHONETE SANTANNA",
+    21085: "AUTO ELETRICA DE LIMA", 21086: "BICICLETaria VITORIA", 21087: "RESTAURANTE E LANCHONETE SANTANNA",
     21088: "CESTAO DO CARLAO", 21089: "LOJA TOP - IPV4", 21090: "CAMPEIRA AGROVETERINARIA LTDA",
     21091: "FRAN PRESENTES", 21092: "LOJA EVE", 21093: "AGRO DUDU", 21094: "HOTEL SANTANA",
     21095: "TOKA SOM",
-    21096: "EMPRESA PENDENTE 21096", # ADICIONADO
+    21096: "EMPRESA PENDENTE 21096",
     21097: "SAWAYA", 21098: "METAL MINOZZO", 21099: "X BURGUER",
     21100: "LL PRESENTES", 21101: "LOJA DA MARIA", 21102: "OTICA HELENITA", 21103: "ESPACO CASA DO SOL",
     21104: "FALKS CONFECCOES", 21105: "CASA DO CEREAL", 21106: "LAURA FLORES E PRESENTES",
@@ -59,98 +59,122 @@ EMPRESAS_POR_PORTA = {
     21131: "ENCANTO MODAS CM", 21132: "LOJA EVELYN"
 }
 
-# Todas as portas que usam 'replicador' estão aqui.
 PORTAS_CREDENCIAIS_ANTIGAS = {
     21001, 21002, 21003, 21004, 21005, 21006, 21007, 21008, 21009, 21010, 21012,
-    21013, 21014, 21015, 21016, 21017, 21018, 21019, 21020, 21021, 21022, 21023, # 21019 ADICIONADO
-    21024, 21025, 21026, 21027, 21028, 21029, 21030, 21031, 21032, 21033, 21034, # 21029, 21030 ADICIONADOS
-    21035, 21036, 21037, 21038, 21039, 21040, 21041, 21042, 21043, 21044, 21045, # 21037 ADICIONADO
+    21013, 21014, 21015, 21016, 21017, 21018, 21019, 21020, 21021, 21022, 21023,
+    21024, 21025, 21026, 21027, 21028, 21029, 21030, 21031, 21032, 21033, 21034,
+    21035, 21036, 21037, 21038, 21039, 21040, 21041, 21042, 21043, 21044, 21045,
     21046, 21047, 21048, 21049, 21050, 21051, 21052, 21053, 21054, 21055, 21056,
     21057, 21058, 21059, 21060, 21061, 21062, 21063, 21064, 21065, 21066, 21067,
     21068, 21069, 21070, 21071, 21072, 21073, 21074, 21075, 21076, 21077, 21078,
     21079, 21080, 21081, 21082, 21083, 21084, 21085, 21086, 21087, 21088, 21089,
-    21090, 21091, 21092, 21093, 21094, 21095, 21096, 21097, 21098, 21099, 21100, # 21096 ADICIONADO
+    21090, 21091, 21092, 21093, 21094, 21095, 21096, 21097, 21098, 21099, 21100,
     21101, 21102, 21103, 21104, 21105, 21106, 21107, 21108, 21109, 21110, 21111,
     21112, 21113, 21114, 21115, 21116, 21117, 21118, 21119, 21120, 21121, 21122,
     21123, 21124, 21125, 21126, 21127, 21128, 21129, 21130, 21131, 21132
 }
 
-def verificar_porta(porta):
-    """
-    Função que verifica uma única porta e retorna um dicionário com o resultado.
-    """
-    host = os.environ.get("DB_HOST", "192.168.1.221")
-    database = os.environ.get("DB_NAME", "ecf")
+# --- Funções de Conexão ---
+def get_connection_details(porta):
+    """Retorna os detalhes de conexão corretos para uma porta."""
+    host = os.environ.get("DB_HOST")
+    database = os.environ.get("DB_NAME")
     
-    user_new = os.environ.get("DB_USER_NEW", "postgres")
-    pass_new = os.environ.get("DB_PASS_NEW", "la246618")
-    
-    user_old = os.environ.get("DB_USER_OLD", "replicador")
-    pass_old = os.environ.get("DB_PASS_OLD", "la@246618")
-
-    tabela = "notas"
-    coluna_data = "datano"
-    dias_limite = 2
-    hoje = date.today()
-
-    nome_empresa = EMPRESAS_POR_PORTA.get(porta, "NOME NÃO ENCONTRADO")
-    msg = ""
-    tag = ""
-
     if porta in PORTAS_CREDENCIAIS_ANTIGAS:
-        usuario = user_old
-        senha = pass_old
+        usuario = os.environ.get("DB_USER_OLD")
+        senha = os.environ.get("DB_PASS_OLD")
     else:
-        usuario = user_new
-        senha = pass_new
+        usuario = os.environ.get("DB_USER_NEW")
+        senha = os.environ.get("DB_PASS_NEW")
+        
+    return {"host": host, "dbname": database, "user": usuario, "password": senha, "port": porta}
 
+# --- MÉTODO 1: VERIFICAÇÃO POR ÚLTIMA NOTA ---
+def verificar_por_nota(porta):
+    conn_details = get_connection_details(porta)
+    nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
+    hoje = datetime.now(timezone.utc).date()
+    
     try:
-        conn = psycopg2.connect(
-            dbname=database, user=usuario, password=senha,
-            host=host, port=porta, connect_timeout=5
-        )
+        conn = psycopg2.connect(**conn_details, connect_timeout=5)
         cur = conn.cursor()
-        cur.execute(f"SELECT MAX(CAST({coluna_data} AS date)) FROM {tabela};")
-        resultado = cur.fetchone()
-        data_ultima = resultado[0] if resultado else None
+        cur.execute("SELECT MAX(CAST(datano AS date)) FROM notas;")
+        data_ultima = cur.fetchone()[0]
         cur.close()
         conn.close()
 
         if data_ultima is None:
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Tabela '{tabela}' vazia."
+            return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ⚠️ AVISO: Tabela 'notas' vazia ou sem data.", "tag": "aviso"}
+        
+        dias_sem_dados = (hoje - data_ultima).days
+        if dias_sem_dados > 2:
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Última nota: {data_ultima.strftime('%d/%m/%Y')} ({dias_sem_dados} dias atrás)"
             tag = "erro"
         else:
-            dias_sem_dados = (hoje - data_ultima).days
-            if dias_sem_dados > dias_limite:
-                msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Última data: {data_ultima.strftime('%d/%m/%Y')} ({dias_sem_dados} dias atrás)"
-                tag = "erro"
-            else:
-                msg = f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Última data: {data_ultima.strftime('%d/%m/%Y')}"
-                tag = "ok"
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Última nota: {data_ultima.strftime('%d/%m/%Y')}"
+            tag = "ok"
+        return {"porta": porta, "msg": msg, "tag": tag}
 
-    except psycopg2.OperationalError as e:
-        if "timeout expired" in str(e):
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Timeout na conexão."
+    except Exception:
+        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}
+
+# --- MÉTODO 2: VERIFICAÇÃO POR LAG DE REPLICAÇÃO ---
+def verificar_por_lag(porta):
+    conn_details = get_connection_details(porta)
+    nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
+    
+    # Limites de atraso em minutos
+    AVISO_MINUTOS = 60
+    ERRO_MINUTOS = 240 # 4 horas
+
+    try:
+        conn = psycopg2.connect(**conn_details, connect_timeout=5)
+        cur = conn.cursor()
+        cur.execute("SELECT pg_last_xact_replay_timestamp();")
+        last_replay_timestamp = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+
+        if last_replay_timestamp is None:
+            return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ⚠️ AVISO: Nenhuma transação replicada ainda.", "tag": "aviso"}
+
+        now_utc = datetime.now(timezone.utc)
+        lag = now_utc - last_replay_timestamp
+        lag_minutes = lag.total_seconds() / 60
+
+        if lag_minutes > ERRO_MINUTOS:
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Atraso de {int(lag_minutes // 60)}h e {int(lag_minutes % 60)}min"
+            tag = "erro"
+        elif lag_minutes > AVISO_MINUTOS:
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ⚠️ AVISO: Atraso de {int(lag_minutes)} minutos"
+            tag = "aviso"
         else:
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação."
-        tag = "aviso"
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Replicação com {int(lag_minutes)} min de atraso"
+            tag = "ok"
+        return {"porta": porta, "msg": msg, "tag": tag}
 
-    except Exception as e:
-        msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO INESPERADO: {str(e).strip()}"
-        tag = "erro"
+    except Exception:
+        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}
 
-    return {"porta": porta, "msg": msg, "tag": tag}
 
+# --- ROTA PRINCIPAL DA API ---
 @app.route('/api/check_replication', methods=['GET'])
 def check_replication_handler():
-    hoje = date.today()
-    header = f"🔍 Iniciando verificação... (Data de hoje: {hoje.strftime('%d/%m/%Y')})"
+    mode = request.args.get('mode', 'notes')
     
+    if mode == 'lag':
+        target_function = verificar_por_lag
+        header = f"🔍 Verificando Lag de Replicação... (Horário Atual: {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')})"
+    else:
+        target_function = verificar_por_nota
+        hoje = datetime.now(timezone.utc).date()
+        header = f"🔍 Verificando por Última Nota... (Data de hoje: {hoje.strftime('%d/%m/%Y')})"
+
     portas_ordenadas = sorted(EMPRESAS_POR_PORTA.keys())
     results = []
 
     with ThreadPoolExecutor(max_workers=20) as executor:
-        future_to_port = {executor.submit(verificar_porta, porta): porta for porta in portas_ordenadas}
+        future_to_port = {executor.submit(target_function, porta): porta for porta in portas_ordenadas}
         
         resultados_map = {}
         for future in as_completed(future_to_port):
@@ -171,7 +195,4 @@ def check_replication_handler():
             results.append(resultados_map[porta])
             
     return jsonify({"header": header, "results": results})
-
-if __name__ == "__main__":
-    app.run(debug=True, port=3000)
 

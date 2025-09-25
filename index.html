@@ -3,146 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor de Replicação PostgreSQL</title>
+    <title>Monitor de Replicação - Pedroso Informática</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* slate-900 */
+        }
+        .result-box::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .result-box::-webkit-scrollbar-track {
+            background: #1e293b; /* slate-800 */
+        }
+        .result-box::-webkit-scrollbar-thumb {
+            background-color: #475569; /* slate-600 */
+            border-radius: 20px;
+        }
+        .loader {
+            border-top-color: #22d3ee; /* cyan-400 */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-200 flex items-center justify-center min-h-screen p-4">
+<body class="bg-slate-900 text-slate-200 flex items-center justify-center min-h-screen p-4">
 
-    <main class="w-full max-w-4xl bg-gray-800 rounded-2xl shadow-2xl p-6 sm:p-8">
-        <header class="text-center mb-8">
-            <h1 class="text-3xl sm:text-4xl font-bold text-cyan-400">Monitor de Replicação</h1>
-            <p class="text-gray-400 mt-2">Status das replicações PostgreSQL - Pedroso Informática</p>
-        </header>
+    <main class="w-full max-w-5xl mx-auto bg-slate-800/50 rounded-2xl shadow-2xl shadow-black/30 border border-slate-700">
+        <div class="p-6 sm:p-8 text-center">
+            <h1 class="text-3xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-sky-500">
+                Monitor de Replicação
+            </h1>
+            <p class="text-slate-400 mt-2">Selecione o método de verificação para os bancos de dados PostgreSQL.</p>
+        </div>
 
-        <div class="text-center mb-8">
-            <button id="verifyButton" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-cyan-500/50">
-                <span class="flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                    Verificar Replicações
-                </span>
-            </button>
+        <!-- Botões de Ação -->
+        <div class="px-6 sm:px-8 py-6 border-y border-slate-700 bg-slate-900/40">
+            <div id="action-buttons" class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <!-- Botão para Verificar por Última Nota -->
+                <button id="btn-check-notes" class="w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-sky-600 hover:bg-sky-500 disabled:bg-sky-700 disabled:opacity-60 disabled:cursor-wait text-white font-semibold rounded-lg shadow-md transition-all duration-300 transform hover:scale-105">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    <span>Verificar por Última Nota</span>
+                </button>
+                <!-- Botão para Verificar Lag de Replicação -->
+                <button id="btn-check-lag" class="w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-cyan-700 disabled:opacity-60 disabled:cursor-wait text-white font-semibold rounded-lg shadow-md transition-all duration-300 transform hover:scale-105">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span>Verificar Lag de Replicação</span>
+                </button>
+            </div>
         </div>
 
         <!-- Área de Resultados -->
-        <div id="results-container" class="bg-gray-900/50 rounded-xl p-4 sm:p-6 min-h-[300px] transition-all duration-300">
-            <div id="placeholder" class="text-center text-gray-500 flex flex-col items-center justify-center h-full">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mb-4"><path d="M12 12h.01"/><path d="M12 6h.01"/><path d="M12 18h.01"/><path d="M18.36 18.36h.01"/><path d="M5.64 5.64h.01"/><path d="M18.36 5.64h.01"/><path d="M5.64 18.36h.01"/></svg>
-                <p>Aguardando verificação...</p>
-                <p class="text-sm mt-1">Clique no botão acima para iniciar.</p>
+        <div class="p-6 sm:p-8">
+            <div id="results-container" class="relative">
+                <pre id="results" class="result-box w-full h-96 bg-slate-900 rounded-lg p-4 font-mono text-sm overflow-auto border border-slate-700 transition-opacity duration-300 opacity-50"></pre>
+                <div id="loader-overlay" class="hidden absolute inset-0 bg-slate-900/80 rounded-lg flex-col items-center justify-center">
+                    <div class="loader w-12 h-12 rounded-full border-4 border-slate-600"></div>
+                    <p class="mt-4 font-semibold text-slate-300">Verificando...</p>
+                </div>
             </div>
-            <div id="loader" class="hidden text-center text-cyan-400 flex flex-col items-center justify-center h-full">
-                <svg class="animate-spin h-10 w-10 text-cyan-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <p class="mt-4 text-lg">Verificando... Isso pode levar um momento.</p>
-            </div>
-            <div id="results" class="hidden font-mono text-sm space-y-2"></div>
+            <p id="error-message" class="text-center text-red-400 mt-4 font-medium"></p>
+            <p id="summary" class="text-center text-slate-500 mt-4 text-xs"></p>
         </div>
-        
-        <footer class="text-center mt-6 text-xs text-gray-500">
-             <p id="footer-text">Verificação será feita em tempo real.</p>
-        </footer>
     </main>
 
     <script>
-        const verifyButton = document.getElementById('verifyButton');
-        const resultsContainer = document.getElementById('results');
-        const loader = document.getElementById('loader');
-        const placeholder = document.getElementById('placeholder');
-        const footerText = document.getElementById('footer-text');
+        const btnCheckNotes = document.getElementById('btn-check-notes');
+        const btnCheckLag = document.getElementById('btn-check-lag');
+        const resultsEl = document.getElementById('results');
+        const errorEl = document.getElementById('error-message');
+        const summaryEl = document.getElementById('summary');
+        const loaderOverlay = document.getElementById('loader-overlay');
 
-        // Mapeamento de status para classes de cor do Tailwind CSS
-        const statusColors = {
-            'ok': 'text-green-400',
-            'aviso': 'text-yellow-400',
-            'erro': 'text-red-400',
-            'titulo': 'text-cyan-400 font-bold'
+        const colors = {
+            ok: 'text-green-400',
+            aviso: 'text-yellow-400',
+            erro: 'text-red-400',
+            header: 'text-cyan-400 font-bold',
+            final: 'text-sky-400 font-bold'
         };
-        
-        // Mapeamento de status para ícones SVG
-        const statusIcons = {
-            'ok': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="inline-block mr-2 text-green-400"><path d="M20 6 9 17l-5-5"/></svg>',
-            'aviso': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="inline-block mr-2 text-yellow-400"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
-            'erro': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="inline-block mr-2 text-red-400"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
-        }
 
-        verifyButton.addEventListener('click', async () => {
-            // Inicia o estado de carregamento
-            verifyButton.disabled = true;
-            verifyButton.classList.add('opacity-50', 'cursor-not-allowed');
-            placeholder.classList.add('hidden');
-            results.classList.add('hidden');
-            loader.classList.remove('hidden');
-            resultsContainer.innerHTML = ''; // Limpa resultados anteriores
-
-            const startTime = new Date();
-            footerText.textContent = `Iniciando verificação em ${startTime.toLocaleTimeString()}...`;
+        const runCheck = async (mode) => {
+            // 1. Iniciar estado de carregamento
+            btnCheckNotes.disabled = true;
+            btnCheckLag.disabled = true;
+            loaderOverlay.classList.remove('hidden');
+            loaderOverlay.classList.add('flex');
+            resultsEl.innerHTML = 'Aguardando resposta do servidor...';
+            resultsEl.classList.add('opacity-50');
+            errorEl.textContent = '';
+            summaryEl.textContent = '';
+            const startTime = performance.now();
 
             try {
-                // A URL '/api/check_replication' é um endpoint padrão da Vercel
-                // que irá executar o arquivo 'api/check_replication.py'.
-                const response = await fetch('/api/check_replication');
-                
+                // 2. Fazer a chamada à API com o modo selecionado
+                const response = await fetch(`/api/check_replication?mode=${mode}`);
                 if (!response.ok) {
-                     const errorData = await response.json();
-                     throw new Error(errorData.error || `Erro na API: ${response.statusText}`);
+                    throw new Error(`Erro na API: ${response.statusText}`);
                 }
-                
                 const data = await response.json();
 
-                // Esconde o loader e mostra os resultados
-                loader.classList.add('hidden');
-                results.classList.remove('hidden');
-
-                // Adiciona o cabeçalho
-                const header = document.createElement('div');
-                header.className = `${statusColors['titulo']} mb-3`;
-                header.textContent = data.header;
-                resultsContainer.appendChild(header);
-
-                // Adiciona cada resultado
+                // 3. Renderizar os resultados
+                resultsEl.innerHTML = ''; // Limpar antes de adicionar novo conteúdo
+                
+                // Adicionar cabeçalho
+                const headerSpan = document.createElement('span');
+                headerSpan.textContent = data.header + '\n\n';
+                headerSpan.className = colors.header;
+                resultsEl.appendChild(headerSpan);
+                
+                // Adicionar resultados das portas
                 data.results.forEach(item => {
-                    const resultDiv = document.createElement('div');
-                    const colorClass = statusColors[item.tag] || 'text-gray-400';
-                    const icon = statusIcons[item.tag] || '';
-                    resultDiv.className = `${colorClass} whitespace-pre-wrap`; // Permite quebra de linha e espaçamento
-                    resultDiv.innerHTML = `${icon}${item.msg}`; // innerHTML para renderizar o SVG
-                    resultsContainer.appendChild(resultDiv);
+                    const lineSpan = document.createElement('span');
+                    lineSpan.textContent = item.msg + '\n';
+                    lineSpan.className = colors[item.tag] || 'text-slate-400';
+                    resultsEl.appendChild(lineSpan);
                 });
-                
-                const endTime = new Date();
-                const duration = ((endTime - startTime) / 1000).toFixed(2);
-                footerText.textContent = `Verificação concluída em ${duration} segundos.`;
-                
-                const footer = document.createElement('div');
-                footer.className = `${statusColors['titulo']} mt-3`;
-                footer.textContent = "🏁 Verificação concluída.";
-                resultsContainer.appendChild(footer);
+
+                // Adicionar mensagem final
+                const finalSpan = document.createElement('span');
+                finalSpan.textContent = '\n🏁 Verificação concluída.';
+                finalSpan.className = colors.final;
+                resultsEl.appendChild(finalSpan);
 
 
-            } catch (error) {
-                console.error("Falha ao buscar dados da replicação:", error);
-                loader.classList.add('hidden');
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'text-red-400 text-center';
-                errorDiv.textContent = `Ocorreu um erro: ${error.message}`;
-                resultsContainer.appendChild(errorDiv);
-                footerText.textContent = `Erro durante a verificação.`;
+            } catch (err) {
+                console.error("Falha na verificação:", err);
+                errorEl.textContent = 'Erro durante a verificação. Verifique o console para mais detalhes.';
             } finally {
-                // Reabilita o botão
-                verifyButton.disabled = false;
-                verifyButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                // 4. Finalizar estado de carregamento
+                const endTime = performance.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+                summaryEl.textContent = `Verificação concluída em ${duration} segundos.`;
+                btnCheckNotes.disabled = false;
+                btnCheckLag.disabled = false;
+                loaderOverlay.classList.add('hidden');
+                loaderOverlay.classList.remove('flex');
+                resultsEl.classList.remove('opacity-50');
+                resultsEl.scrollTop = resultsEl.scrollHeight; // Rolar para o final
             }
-        });
+        };
+
+        btnCheckNotes.addEventListener('click', () => runCheck('notes'));
+        btnCheckLag.addEventListener('click', () => runCheck('lag'));
     </script>
 </body>
 </html>
+
