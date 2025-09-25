@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 app = Flask(__name__)
 
 # Dicionário com todas as empresas e suas respectivas portas
-EMPRESas_POR_PORTA = {
+EMPRESAS_POR_PORTA = {
     21001: "CENTER MALHAS", 21002: "SPEED COPIAS", 21003: "MACO MATERIAIS",
     21004: "NUTRI UNIÃO UVA", 21005: "NUTRI UNIÃO PU", 21006: "ATACADÃO MATERIAIS DE CONSTRUÇÃO",
     21007: "PIRAMIDE AUTOPECAS", 21008: "REBRAS REC. DE PAPEL BRAS", 21009: "DISTRIBUIDORA GRANDE RIO",
