@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # A Vercel exige que a aplicação Flask se chame 'app'
 app = Flask(__name__)
 
-# --- Dicionários de Configuração ---
+# --- Dicionários de Configuração (mesmos de antes) ---
 EMPRESAS_POR_PORTA = {
     21001: "CENTER MALHAS", 21002: "SPEED COPIAS", 21003: "MACO MATERIAIS",
     21004: "NUTRI UNIÃO UVA", 21005: "NUTRI UNIÃO PU", 21006: "ATACADÃO MATERIAIS DE CONSTRUÇÃO",
@@ -74,9 +74,7 @@ PORTAS_CREDENCIAIS_ANTIGAS = {
     21123, 21124, 21125, 21126, 21127, 21128, 21129, 21130, 21131, 21132
 }
 
-# --- Funções de Conexão ---
 def get_connection_details(porta):
-    """Retorna os detalhes de conexão corretos para uma porta."""
     host = os.environ.get("DB_HOST")
     database = os.environ.get("DB_NAME")
     
@@ -89,19 +87,16 @@ def get_connection_details(porta):
         
     return {"host": host, "dbname": database, "user": usuario, "password": senha, "port": porta}
 
-# --- MÉTODO 1: VERIFICAÇÃO POR ÚLTIMA NOTA ---
 def verificar_por_nota(porta):
     conn_details = get_connection_details(porta)
     nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
     hoje = datetime.now(timezone.utc).date()
     
     try:
-        conn = psycopg2.connect(**conn_details, connect_timeout=5)
-        cur = conn.cursor()
-        cur.execute("SELECT MAX(CAST(datano AS date)) FROM notas;")
-        data_ultima = cur.fetchone()[0]
-        cur.close()
-        conn.close()
+        with psycopg2.connect(**conn_details, connect_timeout=5) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT MAX(CAST(datano AS date)) FROM notas;")
+                data_ultima = cur.fetchone()[0]
 
         if data_ultima is None:
             return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ⚠️ AVISO: Tabela 'notas' vazia ou sem data.", "tag": "aviso"}
@@ -118,25 +113,30 @@ def verificar_por_nota(porta):
     except Exception:
         return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}
 
-# --- MÉTODO 2: VERIFICAÇÃO POR LAG DE REPLICAÇÃO ---
 def verificar_por_lag(porta):
     conn_details = get_connection_details(porta)
     nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
     
-    # Limites de atraso em minutos
     AVISO_MINUTOS = 60
-    ERRO_MINUTOS = 240 # 4 horas
+    ERRO_MINUTOS = 240
 
     try:
-        conn = psycopg2.connect(**conn_details, connect_timeout=5)
-        cur = conn.cursor()
-        cur.execute("SELECT pg_last_xact_replay_timestamp();")
-        last_replay_timestamp = cur.fetchone()[0]
-        cur.close()
-        conn.close()
+        with psycopg2.connect(**conn_details, connect_timeout=5) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT pg_last_xact_replay_timestamp();")
+                last_replay_timestamp = cur.fetchone()[0]
 
-        if last_replay_timestamp is None:
-            return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ⚠️ AVISO: Nenhuma transação replicada ainda.", "tag": "aviso"}
+                # --- LÓGICA DE FALLBACK ---
+                if last_replay_timestamp is None:
+                    cur.execute("SELECT status FROM pg_stat_wal_receiver;")
+                    receiver_status = cur.fetchone()
+                    if receiver_status and receiver_status[0] == 'streaming':
+                        # Se está conectado e recebendo, está OK, apenas ocioso.
+                        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Conectado e aguardando dados (ocioso)", "tag": "ok"}
+                    else:
+                        # Se não há timestamp e não está conectado, é um erro.
+                        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Desconectado do servidor principal.", "tag": "erro"}
+                # --- FIM DA LÓGICA DE FALLBACK ---
 
         now_utc = datetime.now(timezone.utc)
         lag = now_utc - last_replay_timestamp
@@ -156,8 +156,6 @@ def verificar_por_lag(porta):
     except Exception:
         return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}
 
-
-# --- ROTA PRINCIPAL DA API ---
 @app.route('/api/check_replication', methods=['GET'])
 def check_replication_handler():
     mode = request.args.get('mode', 'notes')
@@ -171,8 +169,7 @@ def check_replication_handler():
         header = f"🔍 Verificando por Última Nota... (Data de hoje: {hoje.strftime('%d/%m/%Y')})"
 
     portas_ordenadas = sorted(EMPRESAS_POR_PORTA.keys())
-    results = []
-
+    
     with ThreadPoolExecutor(max_workers=20) as executor:
         future_to_port = {executor.submit(target_function, porta): porta for porta in portas_ordenadas}
         
@@ -184,15 +181,9 @@ def check_replication_handler():
                 resultados_map[porta] = data
             except Exception as exc:
                 nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
-                resultados_map[porta] = {
-                    "porta": porta,
-                    "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO FATAL NA THREAD: {exc}",
-                    "tag": "erro"
-                }
+                resultados_map[porta] = {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO FATAL NA THREAD: {exc}", "tag": "erro"}
 
-    for porta in portas_ordenadas:
-        if porta in resultados_map:
-            results.append(resultados_map[porta])
+    results = [resultados_map[porta] for porta in portas_ordenadas if porta in resultados_map]
             
     return jsonify({"header": header, "results": results})
 
