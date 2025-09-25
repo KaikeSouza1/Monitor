@@ -47,7 +47,7 @@ EMPRESAS_POR_PORTA = {
     21095: "TOKA SOM",
     21096: "EMPRESA PENDENTE 21096",
     21097: "SAWAYA", 21098: "METAL MINOZZO", 21099: "X BURGUER",
-    21100: "LL PRESENTES", 21101: "LOJA DA MARIA", 21102: "OTICA HELENITA", 21103: "ESPACO CASA DO SOL",
+    21100: "LL PRESENTES", 2101: "LOJA DA MARIA", 21102: "OTICA HELENITA", 21103: "ESPACO CASA DO SOL",
     21104: "FALKS CONFECCOES", 21105: "CASA DO CEREAL", 21106: "LAURA FLORES E PRESENTES",
     21107: "PLANETA JEANS", 21108: "PLANETA CALÇADOS", 21109: "POUSADA DONA MARIA",
     21110: "CRUZVEL MOTOS", 21111: "SCHIEL", 21112: "DSA ESQUADRIA E VIDRACARIA", 21113: "BETO",
@@ -128,9 +128,15 @@ def verificar_status_replicacao(porta):
                 cur.execute(query)
                 result = cur.fetchone()
 
-        if result and result[0] is not None and result[0] > 0:
+        # Nova lógica, espelhando o Windev: o processo deve estar ativo E ter recebido/aplicado dados.
+        is_replicating = False
+        if result:
             pid, received_lsn, latest_end_lsn = result
-            
+            if pid is not None and pid > 0 and (received_lsn is not None or latest_end_lsn is not None):
+                is_replicating = True
+
+        if is_replicating:
+            pid, received_lsn, latest_end_lsn = result
             if received_lsn is not None and latest_end_lsn is not None and received_lsn != latest_end_lsn:
                 msg = f"[PORTA {porta}] {nome_empresa:<45} | ⚠️ AVISO: Sincronizando (lag detectado)."
                 tag = "aviso"
@@ -138,7 +144,7 @@ def verificar_status_replicacao(porta):
                 msg = f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Replicação ativa e sincronizada."
                 tag = "ok"
         else:
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Assinatura de replicação não encontrada ou inativa."
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Assinatura inativa ou sem fluxo de dados."
             tag = "erro"
         
         return {"porta": porta, "msg": msg, "tag": tag}
