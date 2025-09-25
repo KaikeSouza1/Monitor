@@ -29,7 +29,7 @@ EMPRESAS_POR_PORTA = {
     21053: "MERCADO IGUAÇU IPV6", 21054: "MERCADO DO PORTO IPV6", 21055: "LOJA CRISTINA IPV6",
     21056: "GW ELETRONICA", 21057: "GIRASSOL JARDINAGENS", 21058: "AUTO ELETRICA PASA IPV6",
     21059: "DINOS PU - IPV6", 21060: "DINOS MODA ESPORTIVA", 21061: "KASCHUK BAR E LANCHONETE LTDA",
-    21062: "PEG MATERIAIS ELETRICOS LTDA - IPV6", 21063: "MARQUINHOS AUTOVIDROS - IPV6", 
+    21062: "PEG MATERIAIS ELETRICOS LTDA - IPV6", 21063: "MARQUINHOS AUTOVIDROS - IPV6",
     21064: "PANIFICADORA E CONFEITARIA SUPERPAO - IPV6", 21065: "AGROPECUARIA DO ALEMAO",
     21066: "LOJA SANDY - IPV6", 21067: "BRINCADEIRA DE PAPEL", 21068: "CASA DOS OCULOS - IPV6",
     21069: "CARLAO MODA MIX - IPV6", 21070: "CEPAVEL - IPV6", 21071: "MM CELL PU - IPV6",
@@ -49,29 +49,28 @@ EMPRESAS_POR_PORTA = {
     21118: "HOTEL RIAD", 21119: "FABRICA DE TELAS CM", 21120: "CASA DE RACOES VIER PU",
     21121: "PLUS MATERIAIS ELETRICOS", 21122: "FMR", 21123: "DOELLE", 21124: "AK MATERIAIS",
     21125: "COMERCIAL CRJ", 21126: "WZ MECANICA", 21127: "BICHO MIMADO", 21128: "PORTELA",
-    21129: "REAL PAPELARIA", 21130: "PREVI FIRE", 21131: "ENCANTO MODAS CM", 21132: "LOJA EVELYN",
-    21133: "SAFADAO", 21135: "IVONE MODAS"
+    21129: "REAL PAPELARIA", 21130: "PREVI FIRE", 21131: "ENCANTO MODAS CM", 21132: "LOJA EVELYN"
 }
 
-# Conjunto de portas que utilizam credenciais antigas
+# --- A AÇÃO NECESSÁRIA ESTÁ AQUI ---
+# Verifique esta lista com atenção e adicione TODAS as portas que usam
+# o usuário 'replicador'. Eu já adicionei a 21013 como exemplo.
 PORTAS_CREDENCIAIS_ANTIGAS = {
-    21001, 21002, 21003, 21004, 21005, 21006, 21007, 21008, 21009, 21010, 21012
+    21001, 21002, 21003, 21004, 21005, 21006, 21007, 21008, 21009, 21010, 21012,
+    21013 # <--- ADICIONADA
+    # Adicione outras portas aqui se necessário, separadas por vírgula.
 }
 
 def verificar_porta(porta):
     """
     Função que verifica uma única porta e retorna um dicionário com o resultado.
     """
-    # --- DADOS DE CONEXÃO ---
-    # As credenciais agora são lidas de variáveis de ambiente para segurança.
     host = os.environ.get("DB_HOST", "192.168.1.221")
     database = os.environ.get("DB_NAME", "ecf")
     
-    # Credenciais Novas (padrão)
     user_new = os.environ.get("DB_USER_NEW", "postgres")
     pass_new = os.environ.get("DB_PASS_NEW", "la246618")
     
-    # Credenciais Antigas
     user_old = os.environ.get("DB_USER_OLD", "replicador")
     pass_old = os.environ.get("DB_PASS_OLD", "la@246618")
 
@@ -119,7 +118,9 @@ def verificar_porta(porta):
         if "timeout expired" in str(e):
             msg = f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Timeout na conexão."
         else:
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Porta fechada ou serviço offline."
+            # Erros de autenticação (senha errada, etc.) também caem aqui.
+            # A mensagem é genérica para não expor detalhes de segurança.
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação."
         tag = "aviso"
 
     except Exception as e:
@@ -130,22 +131,15 @@ def verificar_porta(porta):
 
 @app.route('/api/check_replication', methods=['GET'])
 def check_replication_handler():
-    """
-    Endpoint da API que dispara a verificação em paralelo.
-    """
     hoje = date.today()
     header = f"🔍 Iniciando verificação... (Data de hoje: {hoje.strftime('%d/%m/%Y')})"
     
     portas_ordenadas = sorted(EMPRESAS_POR_PORTA.keys())
     results = []
 
-    # Usamos ThreadPoolExecutor para verificar as portas em paralelo, o que é muito mais rápido.
     with ThreadPoolExecutor(max_workers=20) as executor:
-        # Mapeia cada porta para a função de verificação
         future_to_port = {executor.submit(verificar_porta, porta): porta for porta in portas_ordenadas}
         
-        # Coleta os resultados à medida que são concluídos
-        # Criamos um dicionário para poder ordenar no final
         resultados_map = {}
         for future in as_completed(future_to_port):
             porta = future_to_port[future]
@@ -160,15 +154,12 @@ def check_replication_handler():
                     "tag": "erro"
                 }
 
-    # Ordena os resultados pela porta antes de enviar
     for porta in portas_ordenadas:
         if porta in resultados_map:
             results.append(resultados_map[porta])
             
     return jsonify({"header": header, "results": results})
 
-# Este bloco não é necessário na Vercel, mas é útil para testes locais
 if __name__ == "__main__":
-    # Para testar localmente, defina as variáveis de ambiente ou substitua os valores aqui.
-    # Ex: os.environ['DB_HOST'] = 'seu_ip_aqui'
     app.run(debug=True, port=3000)
+
