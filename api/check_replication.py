@@ -1,0 +1,174 @@
+# -*- coding: utf-8 -*-
+import os
+import psycopg2
+from datetime import date
+from flask import Flask, jsonify
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# A Vercel exige que a aplicação Flask se chame 'app'
+app = Flask(__name__)
+
+# Dicionário com todas as empresas e suas respectivas portas
+EMPRESAS_POR_PORTA = {
+    21001: "CENTER MALHAS", 21002: "SPEED COPIAS", 21003: "MACO MATERIAIS",
+    21004: "NUTRI UNIÃO UVA", 21005: "NUTRI UNIÃO PU", 21006: "ATACADÃO MATERIAIS DE CONSTRUÇÃO",
+    21007: "PIRAMIDE AUTOPECAS", 21008: "REBRAS REC. DE PAPEL BRAS", 21009: "DISTRIBUIDORA GRANDE RIO",
+    21010: "NOVA AGROPECUARIA", 21011: "CRIATIVE INFORMATICA", 21012: "TECNOHOUSE INFORMATICA",
+    21013: "CASA DE CARNES ROSSA", 21014: "RETIVALLE RETIFICA", 21015: "SPECIALE PORTAS",
+    21016: "MD GRAZZIOTIN MATERIAIS ELETRICOS LTDA", 21017: "MOTO PECAS DOS COBRAS", 21018: "LUBRIFICAR",
+    21020: "ROSSA INDUSTRIA E COMERCIO DE CARNES", 21021: "CANTINHO DA CRIANCA", 21022: "SERGIO ANDRUKIU/LUKITO",
+    21023: "MADEIREIRA WTK", 21024: "AGRO VALE - 5253", 21025: "AGRO VALE - 5254",
+    21026: "RESTAURANTE E LANCHONETE ROSSA", 21027: "TOCA DO JAVALI", 21028: "JAVALI ARMAS",
+    21031: "DALGALLO MUDAS FLORESTAIS", 21032: "AUTO TINTAS AUTOMOTIVAS", 21033: "AUTO TINTAS FILIAL",
+    21034: "GALENICA MANIPULACAO", 21035: "CENTRAL DO GESSO", 21036: "VIDRACARIA AVENIDA",
+    21038: "RECANTO BELA VISTA", 21039: "PONTO DA MODA", 21040: "MS COMERCIO DE PNEUS",
+    21041: "MS MANUTENCAO DE VEICULOS", 21042: "MERCADO BOM GOSTO", 21043: "AGRO TICO",
+    21044: "RESTAURANTE MACIEL", 21045: "AGRO VALDIR FILIAL", 21046: "CHOCOLATE E CIA",
+    21047: "LOJA BIASI", 21048: "LACHMAN COMERCIO DE FRUTAS LTDA", 21049: "DINOS SPORT UVA",
+    21050: "AEB DEPARTAMENTO DE MODA", 21051: "NEUMA FLORES E DECORACOES", 21052: "CANTINHO DOS PRESENTES",
+    21053: "MERCADO IGUAÇU IPV6", 21054: "MERCADO DO PORTO IPV6", 21055: "LOJA CRISTINA IPV6",
+    21056: "GW ELETRONICA", 21057: "GIRASSOL JARDINAGENS", 21058: "AUTO ELETRICA PASA IPV6",
+    21059: "DINOS PU - IPV6", 21060: "DINOS MODA ESPORTIVA", 21061: "KASCHUK BAR E LANCHONETE LTDA",
+    21062: "PEG MATERIAIS ELETRICOS LTDA - IPV6", 21063: "MARQUINHOS AUTOVIDROS - IPV6", 
+    21064: "PANIFICADORA E CONFEITARIA SUPERPAO - IPV6", 21065: "AGROPECUARIA DO ALEMAO",
+    21066: "LOJA SANDY - IPV6", 21067: "BRINCADEIRA DE PAPEL", 21068: "CASA DOS OCULOS - IPV6",
+    21069: "CARLAO MODA MIX - IPV6", 21070: "CEPAVEL - IPV6", 21071: "MM CELL PU - IPV6",
+    21072: "MARLENE NHOATO PEREIRA - IPV6", 21073: "SMART CONCEPT UVA", 21074: "GALO GÁS - IPV6",
+    21075: "ELETROVIGILANCIA SERVICOS LTDA", 21076: "LOJAO DO CARLAO", 21077: "AGRO SAO LUIZ - IPV6",
+    21078: "INOX BRIL", 21079: "ESQUADRIAS DE METAL L S LTDA", 21080: "LOJA VIPP - IPV6",
+    21081: "CITA", 21082: "LOJA EMMY", 21083: "MASSAS NENA", 21084: "DISTRIBUIDORA OLHO D' AGUA",
+    21085: "AUTO ELETRICA DE LIMA", 21086: "BICICLETARIA VITORIA", 21087: "RESTAURANTE E LANCHONETE SANTANNA",
+    21088: "CESTAO DO CARLAO", 21089: "LOJA TOP - IPV4", 21090: "CAMPEIRA AGROVETERINARIA LTDA",
+    21091: "FRAN PRESENTES", 21092: "LOJA EVE", 21093: "AGRO DUDU", 21094: "HOTEL SANTANA",
+    21095: "TOKA SOM", 21097: "SAWAYA", 21098: "METAL MINOZZO", 21099: "X BURGUER",
+    21100: "LL PRESENTES", 21101: "LOJA DA MARIA", 21102: "OTICA HELENITA", 21103: "ESPACO CASA DO SOL",
+    21104: "FALKS CONFECCOES", 21105: "CASA DO CEREAL", 21106: "LAURA FLORES E PRESENTES",
+    21107: "PLANETA JEANS", 21108: "PLANETA CALÇADOS", 21109: "POUSADA DONA MARIA",
+    21110: "CRUZVEL MOTOS", 21111: "SCHIEL", 21112: "DSA ESQUADRIA E VIDRACARIA", 21113: "BETO",
+    21114: "LOJA DA NATALIA", 21115: "MOTOS LEE", 21116: "DECORACOES ROSA", 21117: "CASA DE RACOES VIER UVA",
+    21118: "HOTEL RIAD", 21119: "FABRICA DE TELAS CM", 21120: "CASA DE RACOES VIER PU",
+    21121: "PLUS MATERIAIS ELETRICOS", 21122: "FMR", 21123: "DOELLE", 21124: "AK MATERIAIS",
+    21125: "COMERCIAL CRJ", 21126: "WZ MECANICA", 21127: "BICHO MIMADO", 21128: "PORTELA",
+    21129: "REAL PAPELARIA", 21130: "PREVI FIRE", 21131: "ENCANTO MODAS CM", 21132: "LOJA EVELYN",
+    21133: "SAFADAO", 21135: "IVONE MODAS"
+}
+
+# Conjunto de portas que utilizam credenciais antigas
+PORTAS_CREDENCIAIS_ANTIGAS = {
+    21001, 21002, 21003, 21004, 21005, 21006, 21007, 21008, 21009, 21010, 21012
+}
+
+def verificar_porta(porta):
+    """
+    Função que verifica uma única porta e retorna um dicionário com o resultado.
+    """
+    # --- DADOS DE CONEXÃO ---
+    # As credenciais agora são lidas de variáveis de ambiente para segurança.
+    host = os.environ.get("DB_HOST", "192.168.1.221")
+    database = os.environ.get("DB_NAME", "ecf")
+    
+    # Credenciais Novas (padrão)
+    user_new = os.environ.get("DB_USER_NEW", "postgres")
+    pass_new = os.environ.get("DB_PASS_NEW", "la246618")
+    
+    # Credenciais Antigas
+    user_old = os.environ.get("DB_USER_OLD", "replicador")
+    pass_old = os.environ.get("DB_PASS_OLD", "la@246618")
+
+    tabela = "notas"
+    coluna_data = "datano"
+    dias_limite = 2
+    hoje = date.today()
+
+    nome_empresa = EMPRESAS_POR_PORTA.get(porta, "NOME NÃO ENCONTRADO")
+    msg = ""
+    tag = ""
+
+    if porta in PORTAS_CREDENCIAIS_ANTIGAS:
+        usuario = user_old
+        senha = pass_old
+    else:
+        usuario = user_new
+        senha = pass_new
+
+    try:
+        conn = psycopg2.connect(
+            dbname=database, user=usuario, password=senha,
+            host=host, port=porta, connect_timeout=5
+        )
+        cur = conn.cursor()
+        cur.execute(f"SELECT MAX(CAST({coluna_data} AS date)) FROM {tabela};")
+        resultado = cur.fetchone()
+        data_ultima = resultado[0] if resultado else None
+        cur.close()
+        conn.close()
+
+        if data_ultima is None:
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Tabela '{tabela}' vazia."
+            tag = "erro"
+        else:
+            dias_sem_dados = (hoje - data_ultima).days
+            if dias_sem_dados > dias_limite:
+                msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Última data: {data_ultima.strftime('%d/%m/%Y')} ({dias_sem_dados} dias atrás)"
+                tag = "erro"
+            else:
+                msg = f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Última data: {data_ultima.strftime('%d/%m/%Y')}"
+                tag = "ok"
+
+    except psycopg2.OperationalError as e:
+        if "timeout expired" in str(e):
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Timeout na conexão."
+        else:
+            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Porta fechada ou serviço offline."
+        tag = "aviso"
+
+    except Exception as e:
+        msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO INESPERADO: {str(e).strip()}"
+        tag = "erro"
+
+    return {"porta": porta, "msg": msg, "tag": tag}
+
+@app.route('/api/check_replication', methods=['GET'])
+def check_replication_handler():
+    """
+    Endpoint da API que dispara a verificação em paralelo.
+    """
+    hoje = date.today()
+    header = f"🔍 Iniciando verificação... (Data de hoje: {hoje.strftime('%d/%m/%Y')})"
+    
+    portas_ordenadas = sorted(EMPRESAS_POR_PORTA.keys())
+    results = []
+
+    # Usamos ThreadPoolExecutor para verificar as portas em paralelo, o que é muito mais rápido.
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        # Mapeia cada porta para a função de verificação
+        future_to_port = {executor.submit(verificar_porta, porta): porta for porta in portas_ordenadas}
+        
+        # Coleta os resultados à medida que são concluídos
+        # Criamos um dicionário para poder ordenar no final
+        resultados_map = {}
+        for future in as_completed(future_to_port):
+            porta = future_to_port[future]
+            try:
+                data = future.result()
+                resultados_map[porta] = data
+            except Exception as exc:
+                nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
+                resultados_map[porta] = {
+                    "porta": porta,
+                    "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO FATAL NA THREAD: {exc}",
+                    "tag": "erro"
+                }
+
+    # Ordena os resultados pela porta antes de enviar
+    for porta in portas_ordenadas:
+        if porta in resultados_map:
+            results.append(resultados_map[porta])
+            
+    return jsonify({"header": header, "results": results})
+
+# Este bloco não é necessário na Vercel, mas é útil para testes locais
+if __name__ == "__main__":
+    # Para testar localmente, defina as variáveis de ambiente ou substitua os valores aqui.
+    # Ex: os.environ['DB_HOST'] = 'seu_ip_aqui'
+    app.run(debug=True, port=3000)

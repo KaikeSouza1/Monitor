@@ -1,0 +1,18 @@
+{
+"builds": [
+{
+"src": "api/check_replication.py",
+"use": "@vercel/python"
+}
+],
+"routes": [
+{
+"src": "/api/check_replication",
+"dest": "api/check_replication.py"
+},
+{
+"src": "/(.*)",
+"dest": "index.html"
+}
+]
+}
