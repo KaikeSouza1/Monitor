@@ -156,7 +156,7 @@ def verificar_dados_empresa(porta):
     conn_details = get_connection_details(porta)
     nome_esperado = EMPRESAS_POR_PORTA.get(porta, "N/A")
     # Consulta o nome fantasia para ser mais descritivo
-    query = "SELECT nomfan FROM empresa LIMIT 1;"
+    query = "SELECT nome FROM empresa LIMIT 1;"
     
     try:
         with psycopg2.connect(**conn_details, connect_timeout=5) as conn:
