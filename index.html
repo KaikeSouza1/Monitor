@@ -43,6 +43,43 @@
         .tag-header { color: #17a2b8; font-weight: 600; }
         .tag-total { color: #17a2b8; font-weight: bold; }
         .tag-info { color: #a3a3a3; }
+        /* Estilo para os radio buttons */
+        .radio-label {
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+            margin-right: 1rem;
+            color: #a3a3a3;
+        }
+        .radio-input {
+            display: none;
+        }
+        .radio-custom {
+            width: 1.25em;
+            height: 1.25em;
+            border: 2px solid #484f58;
+            border-radius: 50%;
+            margin-right: 0.5em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color 0.2s;
+        }
+        .radio-custom::after {
+            content: '';
+            width: 0.75em;
+            height: 0.75em;
+            background-color: #388bfd;
+            border-radius: 50%;
+            transform: scale(0);
+            transition: transform 0.2s;
+        }
+        .radio-input:checked + .radio-custom {
+            border-color: #388bfd;
+        }
+        .radio-input:checked + .radio-custom::after {
+            transform: scale(1);
+        }
     </style>
 </head>
 <body class="text-gray-200">
@@ -69,7 +106,19 @@
                          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4" /></svg>
                         <span>Verificar Tamanho</span>
                     </button>
-                    <p class="text-xs text-gray-500 mt-2">Calcula o espaço em disco de cada banco.</p>
+                    <!-- Controles de Ordenação -->
+                    <div id="sortControls" class="mt-3 flex items-center justify-center text-xs">
+                        <label class="radio-label">
+                            <input type="radio" name="sortOrder" value="port" checked class="radio-input">
+                            <span class="radio-custom"></span>
+                            Ordenar por Porta
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="sortOrder" value="size" class="radio-input">
+                            <span class="radio-custom"></span>
+                            Ordenar por Tamanho
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -113,9 +162,15 @@
             footerText.textContent = '';
             
             const startTime = Date.now();
+            
+            let apiUrl = `/api/check_replication?mode=${mode}`;
+            if (mode === 'size') {
+                const sortOrder = document.querySelector('input[name="sortOrder"]:checked').value;
+                apiUrl += `&sort=${sortOrder}`;
+            }
 
             try {
-                const response = await fetch(`/api/check_replication?mode=${mode}`);
+                const response = await fetch(apiUrl);
                 if (!response.ok) {
                     throw new Error(`Erro na API: ${response.statusText}`);
                 }

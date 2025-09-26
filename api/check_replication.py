@@ -55,8 +55,8 @@ EMPRESAS_POR_PORTA = {
     21121: "PLUS MATERIAIS ELETRICOS", 21122: "FMR", 21123: "DOELLE", 21124: "AK MATERIAIS",
     21125: "COMERCIAL CRJ", 21126: "WZ MECANICA", 21127: "BICHO MIMADO", 21128: "PORTELA",
     21129: "REAL PAPELARIA", 21130: "PREVI FIRE", 21131: "ENCANTO MODAS CM", 21132: "LOJA EVELYN",
-    21133: "BOTECO DO SAFADAO", 21134: "DAISE MODAS FRONTIM", 21135: "IVONE MODAS", 21136: "BABY STORE",
-    21137: "SALAO MIGUEL VARGAS", 21138: "RELOJOARIA CITIZEN"
+    21133: "BOTECO DO SAFADAO", 21134: "DAISE MODAS FRONTIM", 21135: "IVONE MODAS",
+    21136: "BABY STORE", 21137: "SALAO MIGUEL VARGAS", 21138: "RELOJOARIA CITIZEN"
 }
 
 PORTAS_CREDENCIAIS_ANTIGAS = {
@@ -123,6 +123,7 @@ def verificar_tamanho_banco(porta):
     query = """
         (SELECT
             datname AS banco,
+            pg_database_size(datname) AS tamanho_bytes,
             pg_size_pretty(pg_database_size(datname)) AS tamanho_pretty
         FROM pg_database
         WHERE datname NOT IN ('template0', 'template1', 'postgres')
@@ -130,6 +131,7 @@ def verificar_tamanho_banco(porta):
         UNION ALL
         (SELECT
             'TOTAL' AS banco,
+            sum(pg_database_size(datname)) AS tamanho_bytes,
             pg_size_pretty(sum(pg_database_size(datname))) AS tamanho_pretty
         FROM pg_database
         WHERE datname NOT IN ('template0', 'template1', 'postgres'));
@@ -142,22 +144,25 @@ def verificar_tamanho_banco(porta):
                 results = cur.fetchall()
         
         linhas_formatadas = []
-        for banco, tamanho in results:
+        total_size = 0
+        for banco, tamanho_bytes, tamanho_pretty in results:
             if banco == 'TOTAL':
-                linhas_formatadas.append({"msg": f"{'TOTAL':<25} | {tamanho:>15}", "tag": "total"})
+                linhas_formatadas.append({"msg": f"{'TOTAL':<25} | {tamanho_pretty:>15}", "tag": "total"})
+                total_size = tamanho_bytes if tamanho_bytes is not None else 0
             else:
-                linhas_formatadas.append({"msg": f"{banco:<25} | {tamanho:>15}", "tag": "db-name"})
+                linhas_formatadas.append({"msg": f"{banco:<25} | {tamanho_pretty:>15}", "tag": "db-name"})
         
-        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": linhas_formatadas}
+        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": linhas_formatadas, "total_size": total_size}
 
     except psycopg2.OperationalError:
-        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}]}
+        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}], "total_size": -1}
     except Exception as e:
-        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❌ ERRO: {str(e).strip()}", "tag": "erro"}]}
+        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❌ ERRO: {str(e).strip()}", "tag": "erro"}], "total_size": -1}
 
 @app.route('/api/check_replication', methods=['GET'])
 def check_replication_handler():
     mode = request.args.get('mode', 'notes')
+    sort_order = request.args.get('sort', 'port')
     
     portas_ordenadas = sorted(EMPRESAS_POR_PORTA.keys())
     
@@ -184,16 +189,26 @@ def check_replication_handler():
                 nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
                 error_msg_dict = {"msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO FATAL NA THREAD: {exc}", "tag": "erro"}
                 if mode == 'size':
-                     resultados_map[porta] = {"porta": porta, "nome_empresa": nome_empresa, "linhas": [error_msg_dict]}
+                     resultados_map[porta] = {"porta": porta, "nome_empresa": nome_empresa, "linhas": [error_msg_dict], "total_size": -1}
                 else: 
                      resultados_map[porta] = error_msg_dict
 
+    # Ordenação dos resultados
     results = []
     if mode == 'size':
-        for porta in portas_ordenadas:
-            data = resultados_map.get(porta)
+        # Transforma o mapa em uma lista de resultados para ordenar
+        lista_de_resultados = list(resultados_map.values())
+        
+        if sort_order == 'size':
+            # Ordena pela chave 'total_size', do maior para o menor
+            lista_de_resultados.sort(key=lambda x: x.get('total_size', 0), reverse=True)
+        else: # sort_order == 'port'
+             lista_de_resultados.sort(key=lambda x: x.get('porta', 0))
+
+        # Formata a saída após a ordenação
+        for data in lista_de_resultados:
             if data:
-                results.append({"msg": f"--- [PORTA {porta}] {data['nome_empresa']} ---", "tag": "header"})
+                results.append({"msg": f"--- [PORTA {data['porta']}] {data['nome_empresa']} ---", "tag": "header"})
                 results.extend(data['linhas'])
                 results.append({"msg": "", "tag": ""})
     else:
