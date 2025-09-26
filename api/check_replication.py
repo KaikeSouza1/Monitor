@@ -138,17 +138,13 @@ def verificar_tamanho_banco(porta):
                 cur.execute(query)
                 results = cur.fetchall()
         
-        # Formata os resultados para exibição
         linhas_formatadas = []
         for banco, tamanho in results:
             if banco == 'TOTAL':
-                # Mensagem especial para o total
                 linhas_formatadas.append({"msg": f"{'TOTAL':<25} | {tamanho:>15}", "tag": "total"})
             else:
-                 # Mensagem para cada banco de dados
                 linhas_formatadas.append({"msg": f"{banco:<25} | {tamanho:>15}", "tag": "db-name"})
         
-        # A função agora retorna uma lista de dicionários
         return {"porta": porta, "nome_empresa": nome_empresa, "linhas": linhas_formatadas}
 
     except psycopg2.OperationalError:
@@ -161,42 +157,47 @@ def check_replication_handler():
     mode = request.args.get('mode', 'notes')
     
     portas_ordenadas = sorted(EMPRESAS_POR_PORTA.keys())
-    results = []
     
     if mode == 'notes':
         target_function = verificar_por_nota
         hoje = datetime.now(timezone.utc).date()
         header = f"🔍 Verificando por Última Nota... (Data de hoje: {hoje.strftime('%d/%m/%Y')})"
-        
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            future_to_port = {executor.submit(target_function, porta): porta for porta in portas_ordenadas}
-            resultados_map = {future_to_port[future]: future.result() for future in as_completed(future_to_port)}
-        results = [resultados_map[porta] for porta in portas_ordenadas if porta in resultados_map]
-
     elif mode == 'size':
+        target_function = verificar_tamanho_banco
         header = f"📊 Verificando Tamanho dos Bancos de Dados..."
-        # Para o tamanho, a execução pode ser sequencial se for rápida, ou paralela se preferir.
-        # Vamos fazer paralela para manter a consistência.
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            future_to_port = {executor.submit(verificar_tamanho_banco, porta): porta for porta in portas_ordenadas}
-            
-            # Processa os resultados mantendo a ordem das portas
-            temp_results = {}
-            for future in as_completed(future_to_port):
-                porta = future_to_port[future]
+    else:
+        return jsonify({"header": "Erro: Modo inválido", "results": []}), 400
+
+    # Lógica de execução paralela robusta e unificada
+    resultados_map = {}
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        future_to_port = {executor.submit(target_function, porta): porta for porta in portas_ordenadas}
+        
+        for future in as_completed(future_to_port):
+            porta = future_to_port[future]
+            try:
                 data = future.result()
-                temp_results[porta] = data
+                resultados_map[porta] = data
+            except Exception as exc:
+                nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
+                error_msg = {"msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO FATAL NA THREAD: {exc}", "tag": "erro"}
+                if mode == 'size':
+                     resultados_map[porta] = {"porta": porta, "nome_empresa": nome_empresa, "linhas": [error_msg]}
+                else: # mode == 'notes'
+                     resultados_map[porta] = error_msg
 
-            # Monta a lista final de resultados
-            for porta in portas_ordenadas:
-                data = temp_results.get(porta)
-                if data:
-                    # Adiciona a linha da empresa/porta como um cabeçalho para o grupo
-                    results.append({"msg": f"--- [PORTA {porta}] {data['nome_empresa']} ---", "tag": "header"})
-                    # Adiciona as linhas de resultado do banco de dados
-                    results.extend(data['linhas'])
-                    # Adiciona uma linha em branco para espaçamento
-                    results.append({"msg": "", "tag": ""})
 
+    # Montagem da resposta final
+    results = []
+    if mode == 'notes':
+        results = [resultados_map[porta] for porta in portas_ordenadas if porta in resultados_map]
+    elif mode == 'size':
+        for porta in portas_ordenadas:
+            data = resultados_map.get(porta)
+            if data:
+                results.append({"msg": f"--- [PORTA {porta}] {data['nome_empresa']} ---", "tag": "header"})
+                results.extend(data['linhas'])
+                results.append({"msg": "", "tag": ""})
+            
     return jsonify({"header": header, "results": results})
 
