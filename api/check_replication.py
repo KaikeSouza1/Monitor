@@ -54,7 +54,9 @@ EMPRESAS_POR_PORTA = {
     21118: "HOTEL RIAD", 21119: "FABRICA DE TELAS CM", 21120: "CASA DE RACOES VIER PU",
     21121: "PLUS MATERIAIS ELETRICOS", 21122: "FMR", 21123: "DOELLE", 21124: "AK MATERIAIS",
     21125: "COMERCIAL CRJ", 21126: "WZ MECANICA", 21127: "BICHO MIMADO", 21128: "PORTELA",
-    21129: "REAL PAPELARIA", 21130: "PREVI FIRE", 21131: "ENCANTO MODAS CM", 21132: "LOJA EVELYN"
+    21129: "REAL PAPELARIA", 21130: "PREVI FIRE", 21131: "ENCANTO MODAS CM", 21132: "LOJA EVELYN",
+    21133: "BOTECO DO SAFADAO", 21134: "DAISE MODAS FRONTIM", 21135: "IVONE MODAS", 21136: "BABY STORE",
+    21137: "SALAO MIGUEL VARGAS", 21138: "RELOJOARIA CITIZEN"
 }
 
 PORTAS_CREDENCIAIS_ANTIGAS = {
@@ -69,7 +71,8 @@ PORTAS_CREDENCIAIS_ANTIGAS = {
     21090, 21091, 21092, 21093, 21094, 21095, 21096, 21097, 21098, 21099, 21100,
     21101, 21102, 21103, 21104, 21105, 21106, 21107, 21108, 21109, 21110, 21111,
     21112, 21113, 21114, 21115, 21116, 21117, 21118, 21119, 21120, 21121, 21122,
-    21123, 21124, 21125, 21126, 21127, 21128, 21129, 21130, 21131, 21132
+    21123, 21124, 21125, 21126, 21127, 21128, 21129, 21130, 21131, 21132, 21133,
+    21134, 21135, 21136, 21137, 21138
 }
 
 def get_connection_details(porta):
@@ -152,40 +155,6 @@ def verificar_tamanho_banco(porta):
     except Exception as e:
         return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❌ ERRO: {str(e).strip()}", "tag": "erro"}]}
 
-def verificar_dados_empresa(porta):
-    conn_details = get_connection_details(porta)
-    nome_esperado = EMPRESAS_POR_PORTA.get(porta, "N/A")
-    # Consulta o nome fantasia para ser mais descritivo
-    query = "SELECT nome FROM empresa LIMIT 1;"
-    
-    try:
-        with psycopg2.connect(**conn_details, connect_timeout=5) as conn:
-            with conn.cursor() as cur:
-                cur.execute(query)
-                result = cur.fetchone()
-        
-        if result:
-            nome_encontrado = result[0].strip()
-            msg = f"[PORTA {porta}] Esperado: {nome_esperado:<30} | Encontrado: {nome_encontrado}"
-            # Se o nome encontrado for diferente do esperado, é um aviso
-            tag = "ok" if nome_esperado.strip().upper() == nome_encontrado.upper() else "aviso"
-        else:
-            msg = f"[PORTA {porta}] {nome_esperado:<45} | ⚠️ AVISO: Tabela 'empresa' está vazia."
-            tag = "aviso"
-
-        return {"porta": porta, "msg": msg, "tag": tag}
-
-    except psycopg2.OperationalError:
-        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_esperado:<45} | ❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}
-    except Exception as e:
-        # Erro específico se a tabela 'empresa' não existir
-        if 'relation "empresa" does not exist' in str(e):
-            msg = f"[PORTA {porta}] {nome_esperado:<45} | ❌ ERRO: Tabela 'empresa' não existe."
-        else:
-            msg = f"[PORTA {porta}] {nome_esperado:<45} | ❌ ERRO: {str(e).strip()}"
-        return {"porta": porta, "msg": msg, "tag": "erro"}
-
-
 @app.route('/api/check_replication', methods=['GET'])
 def check_replication_handler():
     mode = request.args.get('mode', 'notes')
@@ -199,9 +168,6 @@ def check_replication_handler():
     elif mode == 'size':
         target_function = verificar_tamanho_banco
         header = f"📊 Verificando Tamanho dos Bancos de Dados..."
-    elif mode == 'empresa':
-        target_function = verificar_dados_empresa
-        header = f"🏢 Verificando Dados da Tabela 'empresa'..."
     else:
         return jsonify({"header": "Erro: Modo inválido", "results": []}), 400
 
@@ -216,11 +182,11 @@ def check_replication_handler():
                 resultados_map[porta] = data
             except Exception as exc:
                 nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
-                error_msg = {"msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO FATAL NA THREAD: {exc}", "tag": "erro"}
+                error_msg_dict = {"msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO FATAL NA THREAD: {exc}", "tag": "erro"}
                 if mode == 'size':
-                     resultados_map[porta] = {"porta": porta, "nome_empresa": nome_empresa, "linhas": [error_msg]}
+                     resultados_map[porta] = {"porta": porta, "nome_empresa": nome_empresa, "linhas": [error_msg_dict]}
                 else: 
-                     resultados_map[porta] = error_msg
+                     resultados_map[porta] = error_msg_dict
 
     results = []
     if mode == 'size':
@@ -230,7 +196,7 @@ def check_replication_handler():
                 results.append({"msg": f"--- [PORTA {porta}] {data['nome_empresa']} ---", "tag": "header"})
                 results.extend(data['linhas'])
                 results.append({"msg": "", "tag": ""})
-    else: # notes e empresa
+    else:
         results = [resultados_map[porta] for porta in portas_ordenadas if porta in resultados_map]
             
     return jsonify({"header": header, "results": results})
