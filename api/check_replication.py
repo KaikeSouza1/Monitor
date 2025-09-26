@@ -12,7 +12,7 @@ app = Flask(__name__)
 EMPRESAS_POR_PORTA = {
     21001: "CENTER MALHAS", 21002: "SPEED COPIAS", 21003: "MACO MATERIAIS",
     21004: "NUTRI UNIÃO UVA", 21005: "NUTRI UNIÃO PU", 21006: "ATACADÃO MATERIAIS DE CONSTRUÇÃO",
-    21007: "PIRAMIDE AUTOPECAS", 21008: "REBRAS REC. DE PAPEL BRAS", 21009: "DISTRIBUIDORA GRANDE RIO",
+    21007: "PIRAMIDE AUTOPECAS", 21008: "REBRAS REC. DE PAPEL BRAS", 21009: "DISTRIBUIDora GRANDE RIO",
     21010: "NOVA AGROPECUARIA", 21011: "CRIATIVE INFORMATICA", 21012: "TECNOHOUSE INFORMATICA",
     21013: "CASA DE CARNES ROSSA", 21014: "RETIVALLE RETIFICA", 21015: "SPECIALE PORTAS",
     21016: "MD GRAZZIOTIN MATERIAIS ELETRICOS LTDA", 21017: "MOTO PECAS DOS COBRAS", 21018: "LUBRIFICAR",
@@ -152,6 +152,27 @@ def verificar_tamanho_banco(porta):
     except Exception as e:
         return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❌ ERRO: {str(e).strip()}", "tag": "erro"}]}
 
+def diagnosticar_conexao(porta):
+    conn_details = get_connection_details(porta)
+    nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
+    query = "SELECT pg_postmaster_start_time(), pg_backend_pid();"
+    
+    try:
+        with psycopg2.connect(**conn_details, connect_timeout=5) as conn:
+            with conn.cursor() as cur:
+                cur.execute(query)
+                start_time, pid = cur.fetchone()
+        
+        msg = f"[PORTA {porta}] {nome_empresa:<40} | ✅ PID: {pid:<7} | Início do Servidor: {start_time.strftime('%Y-%m-%d %H:%M:%S')}"
+        tag = "diagnostic"
+        return {"porta": porta, "msg": msg, "tag": tag}
+
+    except psycopg2.OperationalError:
+        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}
+    except Exception as e:
+        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: {str(e).strip()}", "tag": "erro"}
+
+
 @app.route('/api/check_replication', methods=['GET'])
 def check_replication_handler():
     mode = request.args.get('mode', 'notes')
@@ -165,10 +186,12 @@ def check_replication_handler():
     elif mode == 'size':
         target_function = verificar_tamanho_banco
         header = f"📊 Verificando Tamanho dos Bancos de Dados..."
+    elif mode == 'diag':
+        target_function = diagnosticar_conexao
+        header = f"🔬 Diagnóstico de Conexão... (Horário: {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')})"
     else:
         return jsonify({"header": "Erro: Modo inválido", "results": []}), 400
 
-    # Lógica de execução paralela robusta e unificada
     resultados_map = {}
     with ThreadPoolExecutor(max_workers=20) as executor:
         future_to_port = {executor.submit(target_function, porta): porta for porta in portas_ordenadas}
@@ -183,21 +206,19 @@ def check_replication_handler():
                 error_msg = {"msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO FATAL NA THREAD: {exc}", "tag": "erro"}
                 if mode == 'size':
                      resultados_map[porta] = {"porta": porta, "nome_empresa": nome_empresa, "linhas": [error_msg]}
-                else: # mode == 'notes'
+                else: 
                      resultados_map[porta] = error_msg
 
-
-    # Montagem da resposta final
     results = []
-    if mode == 'notes':
-        results = [resultados_map[porta] for porta in portas_ordenadas if porta in resultados_map]
-    elif mode == 'size':
+    if mode == 'size':
         for porta in portas_ordenadas:
             data = resultados_map.get(porta)
             if data:
                 results.append({"msg": f"--- [PORTA {porta}] {data['nome_empresa']} ---", "tag": "header"})
                 results.extend(data['linhas'])
                 results.append({"msg": "", "tag": ""})
+    else: # notes e diag
+        results = [resultados_map[porta] for porta in portas_ordenadas if porta in resultados_map]
             
     return jsonify({"header": header, "results": results})
 
