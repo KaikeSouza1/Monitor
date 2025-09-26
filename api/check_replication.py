@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import os
 import psycopg2
-from datetime import datetime, timezone
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 
 # A Vercel exige que a aplicação Flask se chame 'app'
 app = Flask(__name__)
@@ -41,23 +41,20 @@ EMPRESAS_POR_PORTA = {
     21075: "ELETROVIGILANCIA SERVICOS LTDA", 21076: "LOJAO DO CARLAO", 21077: "AGRO SAO LUIZ - IPV6",
     21078: "INOX BRIL", 21079: "ESQUADRIAS DE METAL L S LTDA", 21080: "LOJA VIPP - IPV6",
     21081: "CITA", 21082: "LOJA EMMY", 21083: "MASSAS NENA", 21084: "DISTRIBUIDORA OLHO D' AGUA",
-    21085: "AUTO ELETRICA DE LIMA", 21086: "BICICLETaria VITORIA", 21087: "RESTAURANTE E LANCHONETE SANTANNA",
+    21085: "AUTO ELETRICA DE LIMA", 21086: "BICICLETARIA VITORIA", 21087: "RESTAURANTE E LANCHONETE SANTANNA",
     21088: "CESTAO DO CARLAO", 21089: "LOJA TOP - IPV4", 21090: "CAMPEIRA AGROVETERINARIA LTDA",
     21091: "FRAN PRESENTES", 21092: "LOJA EVE", 21093: "AGRO DUDU", 21094: "HOTEL SANTANA",
-    21095: "TOKA SOM",
-    21096: "EMPRESA PENDENTE 21096",
-    21097: "SAWAYA", 21098: "METAL MINOZZO", 21099: "X BURGUER",
-    21100: "LL PRESENTES", 21101: "LOJA DA MARIA", 21102: "OTICA HELENITA", 21103: "ESPACO CASA DO SOL",
-    21104: "FALKS CONFECCOES", 21105: "CASA DO CEREAL", 21106: "LAURA FLORES E PRESENTES",
-    21107: "PLANETA JEANS", 21108: "PLANETA CALÇADOS", 21109: "POUSADA DONA MARIA",
-    21110: "CRUZVEL MOTOS", 21111: "SCHIEL", 21112: "DSA ESQUADRIA E VIDRACARIA", 21113: "BETO",
-    21114: "LOJA DA NATALIA", 21115: "MOTOS LEE", 21116: "DECORACOES ROSA", 21117: "CASA DE RACOES VIER UVA",
-    21118: "HOTEL RIAD", 21119: "FABRICA DE TELAS CM",
-    21120: "CASA DE RACOES VIER PU", 21121: "PLUS MATERIAIS ELETRICOS", 21122: "FMR",
-    21123: "DOELLE", 21124: "AK MATERIAIS", 21125: "COMERCIAL CRJ", 21126: "WZ MECANICA",
-    21127: "BICHO MIMADO", 21128: "PORTELA", 21129: "REAL PAPELARIA", 21130: "PREVI FIRE",
-    21131: "ENCANTO MODAS CM", 21132: "LOJA EVELYN", 21133: "BOTECO DO SAFADAO", 21134: "DAISE MODAS FRONTIM",
-    21135: "IVONE MODAS", 21136: "BABY STORE", 21137: "SALAO MIGUEL VARGAS", 21138: "CITIZEN"
+    21095: "TOKA SOM", 21096: "EMPRESA PENDENTE 21096", 21097: "SAWAYA", 21098: "METAL MINOZZO",
+    21099: "X BURGUER", 21100: "LL PRESENTES", 21101: "LOJA DA MARIA", 21102: "OTICA HELENITA",
+    21103: "ESPACO CASA DO SOL", 21104: "FALKS CONFECCOES", 21105: "CASA DO CEREAL",
+    21106: "LAURA FLORES E PRESENTES", 21107: "PLANETA JEANS", 21108: "PLANETA CALÇADOS",
+    21109: "POUSADA DONA MARIA", 21110: "CRUZVEL MOTOS", 21111: "SCHIEL",
+    21112: "DSA ESQUADRIA E VIDRACARIA", 21113: "BETO", 21114: "LOJA DA NATALIA",
+    21115: "MOTOS LEE", 21116: "DECORACOES ROSA", 21117: "CASA DE RACOES VIER UVA",
+    21118: "HOTEL RIAD", 21119: "FABRICA DE TELAS CM", 21120: "CASA DE RACOES VIER PU",
+    21121: "PLUS MATERIAIS ELETRICOS", 21122: "FMR", 21123: "DOELLE", 21124: "AK MATERIAIS",
+    21125: "COMERCIAL CRJ", 21126: "WZ MECANICA", 21127: "BICHO MIMADO", 21128: "PORTELA",
+    21129: "REAL PAPELARIA", 21130: "PREVI FIRE", 21131: "ENCANTO MODAS CM", 21132: "LOJA EVELYN"
 }
 
 PORTAS_CREDENCIAIS_ANTIGAS = {
@@ -72,8 +69,7 @@ PORTAS_CREDENCIAIS_ANTIGAS = {
     21090, 21091, 21092, 21093, 21094, 21095, 21096, 21097, 21098, 21099, 21100,
     21101, 21102, 21103, 21104, 21105, 21106, 21107, 21108, 21109, 21110, 21111,
     21112, 21113, 21114, 21115, 21116, 21117, 21118, 21119, 21120, 21121, 21122,
-    21123, 21124, 21125, 21126, 21127, 21128, 21129, 21130, 21131, 21132, 21133,
-    21134, 21135, 21136, 21137, 21138
+    21123, 21124, 21125, 21126, 21127, 21128, 21129, 21130, 21131, 21132
 }
 
 def get_connection_details(porta):
@@ -101,7 +97,7 @@ def verificar_por_nota(porta):
                 data_ultima = cur.fetchone()[0]
 
         if data_ultima is None:
-            return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ⚠️ AVISO: Tabela 'notas' vazia ou sem data.", "tag": "aviso"}
+            return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ⚠️ AVISO: Tabela 'notas' vazia.", "tag": "aviso"}
         
         dias_sem_dados = (hoje - data_ultima).days
         if dias_sem_dados > 2:
@@ -115,31 +111,92 @@ def verificar_por_nota(porta):
     except psycopg2.OperationalError:
         return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}
     except Exception:
-        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Falha ao consultar a tabela 'notas'.", "tag": "erro"}
+        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Falha ao consultar 'notas'.", "tag": "erro"}
 
+def verificar_tamanho_banco(porta):
+    conn_details = get_connection_details(porta)
+    nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
+    
+    query = """
+        (SELECT
+            datname AS banco,
+            pg_size_pretty(pg_database_size(datname)) AS tamanho_pretty
+        FROM pg_database
+        WHERE datname NOT IN ('template0', 'template1', 'postgres')
+        ORDER BY pg_database_size(datname) DESC, banco ASC)
+        UNION ALL
+        (SELECT
+            'TOTAL' AS banco,
+            pg_size_pretty(sum(pg_database_size(datname))) AS tamanho_pretty
+        FROM pg_database
+        WHERE datname NOT IN ('template0', 'template1', 'postgres'));
+    """
+    
+    try:
+        with psycopg2.connect(**conn_details, connect_timeout=5) as conn:
+            with conn.cursor() as cur:
+                cur.execute(query)
+                results = cur.fetchall()
+        
+        # Formata os resultados para exibição
+        linhas_formatadas = []
+        for banco, tamanho in results:
+            if banco == 'TOTAL':
+                # Mensagem especial para o total
+                linhas_formatadas.append({"msg": f"{'TOTAL':<25} | {tamanho:>15}", "tag": "total"})
+            else:
+                 # Mensagem para cada banco de dados
+                linhas_formatadas.append({"msg": f"{banco:<25} | {tamanho:>15}", "tag": "db-name"})
+        
+        # A função agora retorna uma lista de dicionários
+        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": linhas_formatadas}
+
+    except psycopg2.OperationalError:
+        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}]}
+    except Exception as e:
+        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❌ ERRO: {str(e).strip()}", "tag": "erro"}]}
 
 @app.route('/api/check_replication', methods=['GET'])
 def check_replication_handler():
-    target_function = verificar_por_nota
-    hoje = datetime.now(timezone.utc).date()
-    header = f"🔍 Verificando por Última Nota... (Data de hoje: {hoje.strftime('%d/%m/%Y')})"
-
-    portas_ordenadas = sorted(EMPRESAS_POR_PORTA.keys())
+    mode = request.args.get('mode', 'notes')
     
-    with ThreadPoolExecutor(max_workers=20) as executor:
-        future_to_port = {executor.submit(target_function, porta): porta for porta in portas_ordenadas}
+    portas_ordenadas = sorted(EMPRESAS_POR_PORTA.keys())
+    results = []
+    
+    if mode == 'notes':
+        target_function = verificar_por_nota
+        hoje = datetime.now(timezone.utc).date()
+        header = f"🔍 Verificando por Última Nota... (Data de hoje: {hoje.strftime('%d/%m/%Y')})"
         
-        resultados_map = {}
-        for future in as_completed(future_to_port):
-            porta = future_to_port[future]
-            try:
-                data = future.result()
-                resultados_map[porta] = data
-            except Exception as exc:
-                nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
-                resultados_map[porta] = {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO FATAL NA THREAD: {exc}", "tag": "erro"}
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            future_to_port = {executor.submit(target_function, porta): porta for porta in portas_ordenadas}
+            resultados_map = {future_to_port[future]: future.result() for future in as_completed(future_to_port)}
+        results = [resultados_map[porta] for porta in portas_ordenadas if porta in resultados_map]
 
-    results = [resultados_map[porta] for porta in portas_ordenadas if porta in resultados_map]
+    elif mode == 'size':
+        header = f"📊 Verificando Tamanho dos Bancos de Dados..."
+        # Para o tamanho, a execução pode ser sequencial se for rápida, ou paralela se preferir.
+        # Vamos fazer paralela para manter a consistência.
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            future_to_port = {executor.submit(verificar_tamanho_banco, porta): porta for porta in portas_ordenadas}
             
+            # Processa os resultados mantendo a ordem das portas
+            temp_results = {}
+            for future in as_completed(future_to_port):
+                porta = future_to_port[future]
+                data = future.result()
+                temp_results[porta] = data
+
+            # Monta a lista final de resultados
+            for porta in portas_ordenadas:
+                data = temp_results.get(porta)
+                if data:
+                    # Adiciona a linha da empresa/porta como um cabeçalho para o grupo
+                    results.append({"msg": f"--- [PORTA {porta}] {data['nome_empresa']} ---", "tag": "header"})
+                    # Adiciona as linhas de resultado do banco de dados
+                    results.extend(data['linhas'])
+                    # Adiciona uma linha em branco para espaçamento
+                    results.append({"msg": "", "tag": ""})
+
     return jsonify({"header": header, "results": results})
 
