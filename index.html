@@ -19,28 +19,18 @@
             height: 60vh;
             max-height: 700px;
         }
-        .btn-custom {
-            background-color: #1f6feb;
+        .btn {
             transition: background-color 0.3s ease, transform 0.2s ease;
         }
-        .btn-custom:hover {
-            background-color: #388bfd;
+        .btn:hover {
             transform: translateY(-2px);
         }
-        .btn-secondary {
-            background-color: #30363d;
-        }
-        .btn-secondary:hover {
-            background-color: #484f58;
-            transform: translateY(-2px);
-        }
-        .btn-diagnostic {
-            background-color: #8957e5;
-        }
-        .btn-diagnostic:hover {
-            background-color: #9d78e9;
-            transform: translateY(-2px);
-        }
+        .btn-custom { background-color: #1f6feb; }
+        .btn-custom:hover { background-color: #388bfd; }
+        .btn-secondary { background-color: #30363d; }
+        .btn-secondary:hover { background-color: #484f58; }
+        .btn-diagnostic { background-color: #be185d; }
+        .btn-diagnostic:hover { background-color: #db2777; }
         .spinner {
             border-top-color: #388bfd;
             animation: spin 1s linear infinite;
@@ -50,11 +40,11 @@
         }
         /* Cores para as tags de status */
         .tag-ok, .tag-db-name { color: #28a745; }
-        .tag-diagnostic { color: #a371f7; }
         .tag-aviso { color: #ffc107; }
         .tag-erro { color: #dc3545; }
         .tag-header { color: #17a2b8; }
         .tag-total { color: #17a2b8; font-weight: bold; }
+        .tag-info { color: #a3a3a3; }
     </style>
 </head>
 <body class="text-gray-200">
@@ -68,35 +58,29 @@
             <div class="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4 mb-6">
                 <!-- Botão para Verificar Última Nota -->
                 <div class="flex flex-col items-center text-center">
-                    <button id="checkNotesBtn" class="btn-custom text-white font-semibold py-3 px-6 rounded-lg shadow-lg flex items-center space-x-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                        </svg>
-                        <span>Verificar Última Nota</span>
+                    <button id="checkNotesBtn" class="btn btn-custom text-white font-semibold py-3 px-6 rounded-lg shadow-lg flex items-center space-x-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                        <span>Verificar Nota</span>
                     </button>
                     <p class="text-xs text-gray-500 mt-2">Verifica a data da última nota na tabela 'notas'.</p>
                 </div>
                 
                 <!-- Botão para Verificar Tamanho do Banco -->
                  <div class="flex flex-col items-center text-center">
-                    <button id="checkSizeBtn" class="btn-secondary text-white font-semibold py-3 px-6 rounded-lg shadow-lg flex items-center space-x-2">
-                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4" />
-                        </svg>
+                    <button id="checkSizeBtn" class="btn btn-secondary text-white font-semibold py-3 px-6 rounded-lg shadow-lg flex items-center space-x-2">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4" /></svg>
                         <span>Verificar Tamanho</span>
                     </button>
-                    <p class="text-xs text-gray-500 mt-2">Calcula o espaço em disco de cada banco de dados.</p>
+                    <p class="text-xs text-gray-500 mt-2">Calcula o espaço em disco de cada banco.</p>
                 </div>
 
-                <!-- Botão de Diagnóstico -->
+                <!-- Botão de Diagnóstico de Empresa -->
                  <div class="flex flex-col items-center text-center">
-                    <button id="checkDiagBtn" class="btn-diagnostic text-white font-semibold py-3 px-6 rounded-lg shadow-lg flex items-center space-x-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V4m0 16v-2M12 12l-2-2-2 2 2 2 2-2z" />
-                        </svg>
-                        <span>Diagnosticar Conexão</span>
+                    <button id="checkEmpresaBtn" class="btn btn-diagnostic text-white font-semibold py-3 px-6 rounded-lg shadow-lg flex items-center space-x-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                        <span>Verificar Empresa</span>
                     </button>
-                    <p class="text-xs text-gray-500 mt-2">Verifica a identidade real de cada servidor.</p>
+                    <p class="text-xs text-gray-500 mt-2">Consulta a tabela 'empresa' para validar a conexão.</p>
                 </div>
             </div>
 
@@ -120,16 +104,16 @@
     <script>
         const checkNotesBtn = document.getElementById('checkNotesBtn');
         const checkSizeBtn = document.getElementById('checkSizeBtn');
-        const checkDiagBtn = document.getElementById('checkDiagBtn');
+        const checkEmpresaBtn = document.getElementById('checkEmpresaBtn');
         const resultsContainer = document.getElementById('resultsContainer');
         const loadingIndicator = document.getElementById('loadingIndicator');
         const loadingText = document.getElementById('loadingText');
         const footerText = document.getElementById('footerText');
-        const buttons = [checkNotesBtn, checkSizeBtn, checkDiagBtn];
+        const buttons = [checkNotesBtn, checkSizeBtn, checkEmpresaBtn];
 
         checkNotesBtn.addEventListener('click', () => fetchData('notes'));
         checkSizeBtn.addEventListener('click', () => fetchData('size'));
-        checkDiagBtn.addEventListener('click', () => fetchData('diag'));
+        checkEmpresaBtn.addEventListener('click', () => fetchData('empresa'));
 
         async function fetchData(mode) {
             resultsContainer.innerHTML = '<span class="text-gray-500">Iniciando verificação...</span>';
@@ -161,7 +145,7 @@
                         else lineClass = `tag-${item.tag}`;
                         output += `<div class="${lineClass}">${safeMsg}</div>`;
                     });
-                } else { // notes e diag
+                } else { // notes e empresa
                      data.results.forEach(item => {
                         const safeMsg = item.msg.replace(/</g, "&lt;").replace(/>/g, "&gt;");
                         output += `<div class="tag-${item.tag}">${safeMsg}</div>`;
