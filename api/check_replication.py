@@ -14,11 +14,14 @@ FIXED_HOST = "186.211.103.3"
 
 # Nome da tabela de notas (confirmado: "notas")
 NOTES_TABLE_NAME = "notas" 
+# Nome do banco de dados da aplicação (corrigido para "ecf")
+DEFAULT_DB_NAME = "ecf"
 
 CONFIGURACOES_VM = {
     "221": {
         "HOST": FIXED_HOST,
-        "DB_NAME": os.environ.get("DB_NAME_221", "postgres"),
+        # Usando o default corrigido: 'ecf'
+        "DB_NAME": os.environ.get("DB_NAME_221", DEFAULT_DB_NAME), 
         "USER_OLD": os.environ.get("DB_USER_OLD", "postgres_old"),
         "PASS_OLD": os.environ.get("DB_PASS_OLD", "senha_antiga"),
         "USER_NEW": os.environ.get("DB_USER_NEW", "postgres_new"),
@@ -27,7 +30,8 @@ CONFIGURACOES_VM = {
     },
     "222": {
         "HOST": FIXED_HOST,
-        "DB_NAME": os.environ.get("DB_NAME_222", "postgres"),
+        # Usando o default corrigido: 'ecf'
+        "DB_NAME": os.environ.get("DB_NAME_222", DEFAULT_DB_NAME), 
         # Credenciais padrão para a VM 222 (replicador, la@246618)
         "USER_DEFAULT": "replicador",
         "PASS_DEFAULT": "la@246618", 
@@ -199,7 +203,7 @@ def verificar_por_nota(id_vm, porta):
         return {"porta": porta, "msg": msg, "tag": tag}
 
     except psycopg2.OperationalError:
-        return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ❗ CONEXÃO: Falha ao conectar/autenticar. (Host: {conn_details.get('host', 'N/A')})", "tag": "aviso"}
+        return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ❗ CONEXÃO: Falha ao conectar/autenticar. (Host: {conn_details.get('host', 'N/A')}, DB: {conn_details.get('dbname', 'N/A')})", "tag": "aviso"}
     except Exception as e:
         # Retorna o erro exato, incluindo o problema da tabela
         error_msg = str(e).strip().replace('\n', ' | ')
@@ -253,7 +257,7 @@ def verificar_tamanho_banco(id_vm, porta):
         return {"porta": porta, "nome_empresa": nome_empresa, "linhas": linhas_formatadas, "total_size": total_size}
 
     except psycopg2.OperationalError as e:
-        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❗ CONEXÃO: Falha ao conectar/autenticar. (Host: {conn_details.get('host', 'N/A')})", "tag": "aviso"}], "total_size": -1}
+        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❗ CONEXÃO: Falha ao conectar/autenticar. (Host: {conn_details.get('host', 'N/A')}, DB: {conn_details.get('dbname', 'N/A')})", "tag": "aviso"}], "total_size": -1}
     except Exception as e:
         return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❌ ERRO GERAL: {str(e).strip()}", "tag": "erro"}], "total_size": -1}
 
