@@ -9,20 +9,22 @@ from datetime import datetime, timezone
 app = Flask(__name__)
 
 # --- Configurações das VMs (Servidores) ---
-# Adiciona o novo servidor 222 com as credenciais fornecidas
+# O host é o IP Fixo compartilhado para ambas as VMs, conforme solicitado.
+FIXED_HOST = "186.211.103.3" 
+
 CONFIGURACOES_VM = {
     "221": {
-        "HOST": os.environ.get("DB_HOST_221", "localhost"), # Variável de ambiente para o host 221
+        "HOST": FIXED_HOST,
         "DB_NAME": os.environ.get("DB_NAME_221", "postgres"),
-        "USER_OLD": os.environ.get("DB_USER_OLD", "postgres"),
+        "USER_OLD": os.environ.get("DB_USER_OLD", "postgres_old"), # Usando defaults genéricos para Vercel
         "PASS_OLD": os.environ.get("DB_PASS_OLD", "senha_antiga"),
-        "USER_NEW": os.environ.get("DB_USER_NEW", "postgres"),
+        "USER_NEW": os.environ.get("DB_USER_NEW", "postgres_new"),
         "PASS_NEW": os.environ.get("DB_PASS_NEW", "senha_nova"),
     },
     "222": {
-        "HOST": os.environ.get("DB_HOST_222", "localhost"), # Novo host para a VM 222
+        "HOST": FIXED_HOST,
         "DB_NAME": os.environ.get("DB_NAME_222", "postgres"),
-        # Usando 'replicador' e 'la@246618' para todas as conexões da VM 222
+        # Credenciais padrão para a VM 222 (replicador, la@246618)
         "USER_DEFAULT": "replicador",
         "PASS_DEFAULT": "la@246618", 
     }
@@ -114,6 +116,7 @@ def get_connection_details(id_vm, porta):
     """
     vm_config = CONFIGURACOES_VM.get(id_vm)
     if not vm_config:
+        # Isso não deve acontecer se o frontend funcionar corretamente, mas é uma proteção
         raise ValueError(f"Configuração para VM {id_vm} não encontrada.")
     
     host = vm_config["HOST"]
@@ -136,6 +139,7 @@ def get_connection_details(id_vm, porta):
     else:
         raise ValueError(f"ID de VM {id_vm} inválido.")
         
+    # Retorna o dicionário de detalhes, incluindo o host corrigido
     return {"host": host, "dbname": database, "user": usuario, "password": senha, "port": porta}
 
 def get_empresas_by_vm(id_vm):
@@ -186,7 +190,7 @@ def verificar_por_nota(id_vm, porta):
         return {"porta": porta, "msg": msg, "tag": tag}
 
     except psycopg2.OperationalError:
-        return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ❗ CONEXÃO: Falha ao conectar/autenticar.", "tag": "aviso"}
+        return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ❗ CONEXÃO: Falha ao conectar/autenticar. (Host: {conn_details.get('host', 'N/A')})", "tag": "aviso"}
     except Exception as e:
         return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ❌ ERRO GERAL: Falha ao consultar 'notas'. ({str(e).strip()})", "tag": "erro"}
 
@@ -238,7 +242,7 @@ def verificar_tamanho_banco(id_vm, porta):
         return {"porta": porta, "nome_empresa": nome_empresa, "linhas": linhas_formatadas, "total_size": total_size}
 
     except psycopg2.OperationalError as e:
-        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❗ CONEXÃO: Falha ao conectar/autenticar. ({str(e).strip()})", "tag": "aviso"}], "total_size": -1}
+        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❗ CONEXÃO: Falha ao conectar/autenticar. (Host: {conn_details.get('host', 'N/A')})", "tag": "aviso"}], "total_size": -1}
     except Exception as e:
         return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❌ ERRO GERAL: {str(e).strip()}", "tag": "erro"}], "total_size": -1}
 
@@ -256,20 +260,19 @@ def check_replication_handler():
     portas_ordenadas = sorted(empresas.keys())
     
     if mode == 'notes':
-        target_function = verificar_por_nota
+        target_function = lambda porta: verificar_por_nota(vm_id, porta)
         hoje = datetime.now(timezone.utc).date()
         header = f"🔍 VM {vm_id} | Verificando por Última Nota... (Hoje: {hoje.strftime('%d/%m/%Y')})"
     elif mode == 'size':
-        target_function = verificar_tamanho_banco
+        target_function = lambda porta: verificar_tamanho_banco(vm_id, porta)
         header = f"📊 VM {vm_id} | Verificando Tamanho dos Bancos de Dados..."
     else:
         return jsonify({"header": "Erro: Modo inválido", "results": []}), 400
 
     resultados_map = {}
-    # Aumentando o número de threads para lidar com mais portas, se necessário
     with ThreadPoolExecutor(max_workers=30) as executor: 
-        # Passa o vm_id para a função de verificação
-        future_to_port = {executor.submit(target_function, vm_id, porta): porta for porta in portas_ordenadas}
+        # Executa a função 'target_function' que já tem o 'vm_id' embutido
+        future_to_port = {executor.submit(target_function, porta): porta for porta in portas_ordenadas}
         
         for future in as_completed(future_to_port):
             porta = future_to_port[future]
@@ -287,7 +290,6 @@ def check_replication_handler():
     # Ordenação dos resultados
     results = []
     if mode == 'size':
-        # Transforma o mapa em uma lista de resultados para ordenar
         lista_de_resultados = list(resultados_map.values())
         
         if sort_order == 'size':
@@ -304,7 +306,7 @@ def check_replication_handler():
                 results.extend(data['linhas'])
                 results.append({"msg": "", "tag": ""})
     else:
-        # Modo 'notes' (ordenação apenas por porta, que já é feita por padrão)
+        # Modo 'notes' - A ordenação é sempre por porta (que já é garantida pelo loop de portas_ordenadas)
         results = [resultados_map[porta] for porta in portas_ordenadas if porta in resultados_map]
             
     return jsonify({"header": header, "results": results})
