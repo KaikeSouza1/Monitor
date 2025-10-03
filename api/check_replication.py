@@ -8,8 +8,29 @@ from datetime import datetime, timezone
 # A Vercel exige que a aplicação Flask se chame 'app'
 app = Flask(__name__)
 
-# --- Dicionários de Configuração ---
-EMPRESAS_POR_PORTA = {
+# --- Configurações das VMs (Servidores) ---
+# Adiciona o novo servidor 222 com as credenciais fornecidas
+CONFIGURACOES_VM = {
+    "221": {
+        "HOST": os.environ.get("DB_HOST_221", "localhost"), # Variável de ambiente para o host 221
+        "DB_NAME": os.environ.get("DB_NAME_221", "postgres"),
+        "USER_OLD": os.environ.get("DB_USER_OLD", "postgres"),
+        "PASS_OLD": os.environ.get("DB_PASS_OLD", "senha_antiga"),
+        "USER_NEW": os.environ.get("DB_USER_NEW", "postgres"),
+        "PASS_NEW": os.environ.get("DB_PASS_NEW", "senha_nova"),
+    },
+    "222": {
+        "HOST": os.environ.get("DB_HOST_222", "localhost"), # Novo host para a VM 222
+        "DB_NAME": os.environ.get("DB_NAME_222", "postgres"),
+        # Usando 'replicador' e 'la@246618' para todas as conexões da VM 222
+        "USER_DEFAULT": "replicador",
+        "PASS_DEFAULT": "la@246618", 
+    }
+}
+
+# --- Dicionários de Configuração de Clientes ---
+# Clientes da VM 221 (Antiga lógica)
+EMPRESAS_VM_221 = {
     21001: "CENTER MALHAS", 21002: "SPEED COPIAS", 21003: "MACO MATERIAIS",
     21004: "NUTRI UNIÃO UVA", 21005: "NUTRI UNIÃO PU", 21006: "ATACADÃO MATERIAIS DE CONSTRUÇÃO",
     21007: "PIRAMIDE AUTOPECAS", 21008: "REBRAS REC. DE PAPEL BRAS", 21009: "DISTRIBUIDORA GRANDE RIO",
@@ -62,7 +83,15 @@ EMPRESAS_POR_PORTA = {
     21147: "RFL EQUIPAMENTOS", 21148: "SERRARIA WERLE", 21149: "VIVEIRO ANAFLORA", 21150: "PIONEIRA AGROVETERINARIA"
 }
 
-PORTAS_CREDENCIAIS_ANTIGAS = {
+# Clientes da VM 222 (Novos clientes da imagem)
+EMPRESAS_VM_222 = {
+    22001: "PADARIA VOVO MILENE", 22002: "LEAO GAS", 22003: "MERCADO FAMILIAR",
+    22004: "NEUTCHO MOTOS", 22005: "DFATTO IND COM MOVEIS", 22006: "FARMACIA CRISTO REI",
+    22007: "HOTEL RODAK", 22008: "AGRO MECANICA 047"
+}
+
+# Portas que usam credenciais antigas na VM 221
+PORTAS_CREDENCIAIS_ANTIGAS_221 = {
     21001, 21002, 21003, 21004, 21005, 21006, 21007, 21008, 21009, 21010, 21012,
     21013, 21014, 21015, 21016, 21017, 21018, 21019, 21020, 21021, 21022, 21023,
     21024, 21025, 21026, 21027, 21028, 21029, 21030, 21031, 21032, 21033, 21034,
@@ -79,51 +108,101 @@ PORTAS_CREDENCIAIS_ANTIGAS = {
     21144, 21145, 21146, 21147, 21148, 21149, 21150
 }
 
-def get_connection_details(porta):
-    host = os.environ.get("DB_HOST")
-    database = os.environ.get("DB_NAME")
+def get_connection_details(id_vm, porta):
+    """
+    Retorna os detalhes de conexão para uma porta e ID de VM específicos.
+    """
+    vm_config = CONFIGURACOES_VM.get(id_vm)
+    if not vm_config:
+        raise ValueError(f"Configuração para VM {id_vm} não encontrada.")
     
-    if porta in PORTAS_CREDENCIAIS_ANTIGAS:
-        usuario = os.environ.get("DB_USER_OLD")
-        senha = os.environ.get("DB_PASS_OLD")
+    host = vm_config["HOST"]
+    database = vm_config["DB_NAME"]
+    
+    if id_vm == "221":
+        # Lógica de credenciais para VM 221
+        if porta in PORTAS_CREDENCIAIS_ANTIGAS_221:
+            usuario = vm_config["USER_OLD"]
+            senha = vm_config["PASS_OLD"]
+        else:
+            usuario = vm_config["USER_NEW"]
+            senha = vm_config["PASS_NEW"]
+    
+    elif id_vm == "222":
+        # Lógica de credenciais para VM 222 (usa credenciais padrão fornecidas)
+        usuario = vm_config["USER_DEFAULT"]
+        senha = vm_config["PASS_DEFAULT"]
+    
     else:
-        usuario = os.environ.get("DB_USER_NEW")
-        senha = os.environ.get("DB_PASS_NEW")
+        raise ValueError(f"ID de VM {id_vm} inválido.")
         
     return {"host": host, "dbname": database, "user": usuario, "password": senha, "port": porta}
 
-def verificar_por_nota(porta):
-    conn_details = get_connection_details(porta)
-    nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
+def get_empresas_by_vm(id_vm):
+    """
+    Retorna o dicionário de empresas para o ID de VM fornecido.
+    """
+    if id_vm == "221":
+        return EMPRESAS_VM_221
+    elif id_vm == "222":
+        return EMPRESAS_VM_222
+    return {}
+
+def verificar_por_nota(id_vm, porta):
+    """
+    Verifica a data da última nota para a porta e VM especificadas.
+    """
+    try:
+        conn_details = get_connection_details(id_vm, porta)
+    except ValueError as e:
+        return {"porta": porta, "msg": f"[VM {id_vm}] N/A | ❌ ERRO: {str(e)}", "tag": "erro"}
+
+    empresas = get_empresas_by_vm(id_vm)
+    nome_empresa = empresas.get(porta, "N/A")
     hoje = datetime.now(timezone.utc).date()
     
     try:
+        # Tenta a conexão com um timeout de 5 segundos
         with psycopg2.connect(**conn_details, connect_timeout=5) as conn:
             with conn.cursor() as cur:
+                # Consulta para pegar a data máxima da nota
                 cur.execute("SELECT MAX(CAST(datano AS date)) FROM notas;")
                 data_ultima = cur.fetchone()[0]
 
         if data_ultima is None:
-            return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ⚠️ AVISO: Tabela 'notas' vazia.", "tag": "aviso"}
+            return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ⚠️ AVISO: Tabela 'notas' vazia.", "tag": "aviso"}
         
         dias_sem_dados = (hoje - data_ultima).days
-        if dias_sem_dados > 2:
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Última nota: {data_ultima.strftime('%d/%m/%Y')} ({dias_sem_dados} dias atrás)"
+        # Alerta se a nota for de 3 ou mais dias atrás
+        if dias_sem_dados >= 3:
+            msg = f"[VM {id_vm}] {nome_empresa:<45} | ❌ ERRO: Última nota: {data_ultima.strftime('%d/%m/%Y')} ({dias_sem_dados} dias atrás)"
             tag = "erro"
+        elif dias_sem_dados == 2:
+            msg = f"[VM {id_vm}] {nome_empresa:<45} | ⚠️ AVISO: Última nota: {data_ultima.strftime('%d/%m/%Y')} ({dias_sem_dados} dias atrás)"
+            tag = "aviso"
         else:
-            msg = f"[PORTA {porta}] {nome_empresa:<45} | ✅ OK - Última nota: {data_ultima.strftime('%d/%m/%Y')}"
+            msg = f"[VM {id_vm}] {nome_empresa:<45} | ✅ OK - Última nota: {data_ultima.strftime('%d/%m/%Y')}"
             tag = "ok"
         return {"porta": porta, "msg": msg, "tag": tag}
 
     except psycopg2.OperationalError:
-        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}
-    except Exception:
-        return {"porta": porta, "msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO: Falha ao consultar 'notas'.", "tag": "erro"}
+        return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ❗ CONEXÃO: Falha ao conectar/autenticar.", "tag": "aviso"}
+    except Exception as e:
+        return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ❌ ERRO GERAL: Falha ao consultar 'notas'. ({str(e).strip()})", "tag": "erro"}
 
-def verificar_tamanho_banco(porta):
-    conn_details = get_connection_details(porta)
-    nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
+def verificar_tamanho_banco(id_vm, porta):
+    """
+    Verifica o tamanho do banco de dados para a porta e VM especificadas.
+    """
+    try:
+        conn_details = get_connection_details(id_vm, porta)
+    except ValueError as e:
+        return {"porta": porta, "nome_empresa": "N/A", "linhas": [{"msg": f"❌ ERRO: {str(e)}", "tag": "erro"}], "total_size": -1}
+
+    empresas = get_empresas_by_vm(id_vm)
+    nome_empresa = empresas.get(porta, "N/A")
     
+    # Consulta SQL para obter o tamanho de cada banco e o total
     query = """
         (SELECT
             datname AS banco,
@@ -158,31 +237,39 @@ def verificar_tamanho_banco(porta):
         
         return {"porta": porta, "nome_empresa": nome_empresa, "linhas": linhas_formatadas, "total_size": total_size}
 
-    except psycopg2.OperationalError:
-        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❗ AVISO: Falha na conexão/autenticação.", "tag": "aviso"}], "total_size": -1}
+    except psycopg2.OperationalError as e:
+        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❗ CONEXÃO: Falha ao conectar/autenticar. ({str(e).strip()})", "tag": "aviso"}], "total_size": -1}
     except Exception as e:
-        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❌ ERRO: {str(e).strip()}", "tag": "erro"}], "total_size": -1}
+        return {"porta": porta, "nome_empresa": nome_empresa, "linhas": [{"msg": f"❌ ERRO GERAL: {str(e).strip()}", "tag": "erro"}], "total_size": -1}
 
 @app.route('/api/check_replication', methods=['GET'])
 def check_replication_handler():
+    # Parâmetro para selecionar a VM (221 ou 222). Padrão é '221'.
+    vm_id = request.args.get('vm_id', '221')
     mode = request.args.get('mode', 'notes')
     sort_order = request.args.get('sort', 'port')
     
-    portas_ordenadas = sorted(EMPRESAS_POR_PORTA.keys())
+    empresas = get_empresas_by_vm(vm_id)
+    if not empresas:
+        return jsonify({"header": f"Erro: VM {vm_id} não configurada.", "results": []}), 400
+
+    portas_ordenadas = sorted(empresas.keys())
     
     if mode == 'notes':
         target_function = verificar_por_nota
         hoje = datetime.now(timezone.utc).date()
-        header = f"🔍 Verificando por Última Nota... (Data de hoje: {hoje.strftime('%d/%m/%Y')})"
+        header = f"🔍 VM {vm_id} | Verificando por Última Nota... (Hoje: {hoje.strftime('%d/%m/%Y')})"
     elif mode == 'size':
         target_function = verificar_tamanho_banco
-        header = f"📊 Verificando Tamanho dos Bancos de Dados..."
+        header = f"📊 VM {vm_id} | Verificando Tamanho dos Bancos de Dados..."
     else:
         return jsonify({"header": "Erro: Modo inválido", "results": []}), 400
 
     resultados_map = {}
-    with ThreadPoolExecutor(max_workers=20) as executor:
-        future_to_port = {executor.submit(target_function, porta): porta for porta in portas_ordenadas}
+    # Aumentando o número de threads para lidar com mais portas, se necessário
+    with ThreadPoolExecutor(max_workers=30) as executor: 
+        # Passa o vm_id para a função de verificação
+        future_to_port = {executor.submit(target_function, vm_id, porta): porta for porta in portas_ordenadas}
         
         for future in as_completed(future_to_port):
             porta = future_to_port[future]
@@ -190,8 +277,8 @@ def check_replication_handler():
                 data = future.result()
                 resultados_map[porta] = data
             except Exception as exc:
-                nome_empresa = EMPRESAS_POR_PORTA.get(porta, "N/A")
-                error_msg_dict = {"msg": f"[PORTA {porta}] {nome_empresa:<45} | ❌ ERRO FATAL NA THREAD: {exc}", "tag": "erro"}
+                nome_empresa = empresas.get(porta, "N/A")
+                error_msg_dict = {"msg": f"[VM {vm_id}] {nome_empresa:<45} | ❌ ERRO FATAL NA THREAD: {exc}", "tag": "erro"}
                 if mode == 'size':
                      resultados_map[porta] = {"porta": porta, "nome_empresa": nome_empresa, "linhas": [error_msg_dict], "total_size": -1}
                 else: 
@@ -212,11 +299,12 @@ def check_replication_handler():
         # Formata a saída após a ordenação
         for data in lista_de_resultados:
             if data:
-                results.append({"msg": f"--- [PORTA {data['porta']}] {data['nome_empresa']} ---", "tag": "header"})
+                # Usa o nome da empresa como cabeçalho para o modo de tamanho
+                results.append({"msg": f"--- [VM {vm_id} - PORTA {data['porta']}] {data['nome_empresa']} ---", "tag": "header"})
                 results.extend(data['linhas'])
                 results.append({"msg": "", "tag": ""})
     else:
+        # Modo 'notes' (ordenação apenas por porta, que já é feita por padrão)
         results = [resultados_map[porta] for porta in portas_ordenadas if porta in resultados_map]
             
     return jsonify({"header": header, "results": results})
-
