@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -27,14 +27,16 @@
         }
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(49, 130, 206, 0.3), 0 4px 6px -2px rgba(49, 130, 206, 0.2);
+            /* Usando a cor do logo (azul ciano) */
+            box-shadow: 0 10px 15px -3px rgba(0, 191, 255, 0.4), 0 4px 6px -2px rgba(0, 191, 255, 0.3);
         }
         .btn-primary { 
-            background-color: #3b82f6; /* Blue 500 */
-            background-image: linear-gradient(to right, #2563eb, #3b82f6);
+            /* Gradiente azul ciano forte */
+            background-image: linear-gradient(to right, #00bfff, #1e90ff); 
+            background-color: #00bfff;
         }
         .btn-primary:hover { 
-            background-color: #2563eb; 
+            background-color: #1e90ff; 
         }
         .btn-secondary { 
             background-color: #4a5568; /* Gray 600 */
@@ -43,7 +45,7 @@
             background-color: #2d3748; /* Gray 800 */
         }
         .spinner {
-            border-top-color: #3b82f6;
+            border-top-color: #00bfff; /* Cor do logo */
             animation: spin 1s linear infinite;
         }
         @keyframes spin {
@@ -53,8 +55,8 @@
         .tag-ok, .tag-db-name { color: #10b981; } /* Emerald 500 */
         .tag-aviso { color: #f59e0b; } /* Amber 500 */
         .tag-erro { color: #ef4444; } /* Red 500 */
-        .tag-header { color: #60a5fa; font-weight: 700; padding-top: 0.5rem; margin-top: 0.5rem; border-top: 1px solid #3d4554; }
-        .tag-total { color: #3b82f6; font-weight: bold; } /* Blue 500 */
+        .tag-header { color: #00bfff; font-weight: 700; padding-top: 0.5rem; margin-top: 0.5rem; border-top: 1px solid #3d4554; }
+        .tag-total { color: #00bfff; font-weight: bold; } /* Cor do logo */
         .tag-info { color: #9ca3af; } /* Gray 400 */
         
         /* Estilo aprimorado para o seletor de VM/Radio Buttons */
@@ -71,10 +73,10 @@
             background-color: #1f2937; /* Darker hover */
         }
         .radio-input:checked + .radio-label {
-            background-color: #2563eb; /* Blue 600 */
+            background-color: #00bfff; /* Cor do logo */
             font-weight: 600;
             color: white;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 2px 4px rgba(0, 191, 255, 0.3);
         }
         .radio-input {
             display: none;
@@ -95,14 +97,17 @@
             margin-right: 0.5rem;
         }
     </style>
-    <!-- Incluindo ícones Lucide (mais modernos que Feather/Heroicons) -->
+    <!-- Incluindo ícones Lucide -->
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 </head>
 <body class="text-gray-100">
-    <div class="min-h-screen flex items-start pt-12 justify-center p-4">
+    <div class="min-h-screen flex flex-col items-center pt-12 p-4">
         <div class="w-full max-w-5xl">
             <header class="text-center mb-8">
-                <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600 mb-2">
+                <!-- Inserção do Logo, agora MAIOR (h-24 w-24) -->
+                <img src="/logo.png" alt="Logo do Cliente - Leão" class="h-24 w-24 mx-auto mb-4 rounded-full shadow-2xl border-4 border-[#00bfff] object-cover" onerror="this.onerror=null; this.src='https://placehold.co/96x96/00bfff/ffffff?text=Logo'">
+                
+                <h1 class="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-[#00bfff] to-[#1e90ff] mb-2">
                     Monitor PostgreSQL
                 </h1>
                 <p class="text-lg text-gray-400">Status de Replicação de Clientes</p>
@@ -142,8 +147,8 @@
                          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a2 2 0 0 0-2-2L9 6v13.06117a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-1.13061"/><path d="M10 3v2a2 2 0 0 0 2 2h2"/></svg>
                         <span>Verificar Tamanho DB</span>
                     </button>
-                    <!-- Controles de Ordenação -->
-                    <div id="sortControls" class="mt-3 flex items-center justify-center text-xs space-x-4">
+                    <!-- Controles de Ordenação (Exibidos apenas no modo 'size') -->
+                    <div id="sortControls" class="mt-3 flex items-center justify-center text-xs space-x-4 hidden">
                         <label class="radio-label p-2 rounded-lg bg-transparent hover:bg-gray-700 transition">
                             <input type="radio" name="sortOrder" value="port" checked class="radio-input">
                             <span class="ml-1">Ordenar por Porta</span>
@@ -162,7 +167,7 @@
             </div>
             
             <!-- Indicador de Carregamento -->
-            <div id="loadingIndicator" class="text-center mt-6 text-blue-400 hidden">
+            <div id="loadingIndicator" class="text-center mt-6 text-[#00bfff] hidden">
                 <div class="flex items-center justify-center">
                     <div class="spinner h-5 w-5 rounded-full border-4 border-transparent mr-3"></div>
                     <span id="loadingText" class="font-medium"></span>
@@ -187,18 +192,26 @@
         const loadingText = document.getElementById('loadingText');
         const footerText = document.getElementById('footerText');
         const vmRadios = document.querySelectorAll('input[name="vm_id"]');
+        const sortControls = document.getElementById('sortControls');
         const buttons = [checkNotesBtn, checkSizeBtn];
 
-        // Adiciona listeners para os botões
-        checkNotesBtn.addEventListener('click', () => fetchData('notes'));
-        checkSizeBtn.addEventListener('click', () => fetchData('size'));
+        // Event Listeners
+        checkNotesBtn.addEventListener('click', () => {
+            sortControls.classList.add('hidden'); // Esconde ao clicar em Notas
+            fetchData('notes');
+        });
+        
+        checkSizeBtn.addEventListener('click', () => {
+            sortControls.classList.remove('hidden'); // Mostra ao clicar em Tamanho
+            fetchData('size');
+        });
 
-        // Adiciona listeners para as mudanças de VM
         vmRadios.forEach(radio => {
             radio.addEventListener('change', () => {
                 resultsContainer.innerHTML = '<span class="tag-info">VM alterada. Por favor, inicie uma nova verificação.</span>';
                 footerText.textContent = '';
-                // Opcional: Desabilitar botões enquanto não houver ação
+                // Oculta a ordenação, pois o estado inicial é 'notes'
+                sortControls.classList.add('hidden'); 
             });
         });
 
@@ -222,10 +235,13 @@
             const startTime = Date.now();
             
             let apiUrl = `/api/check_replication?mode=${mode}&vm_id=${vmId}`;
+            
+            // Lógica CORRETA: Só adiciona a ordenação se o modo for 'size'
             if (mode === 'size') {
                 const sortOrder = document.querySelector('input[name="sortOrder"]:checked').value;
                 apiUrl += `&sort=${sortOrder}`;
             }
+            // Se o modo for 'notes', o parâmetro 'sort' não é adicionado, garantindo a ordenação por porta (padrão do backend).
 
             try {
                 const response = await fetch(apiUrl);
@@ -245,16 +261,13 @@
                 
                 // Processa a lista de resultados, que já vem formatada do backend
                 data.results.forEach(item => {
-                    // Prepara a mensagem para exibição segura (evita injeção HTML simples)
                     const safeMsg = item.msg.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                    // Adiciona a tag de cor/estilo (ex: tag-ok, tag-erro, tag-header)
                     output += `<div class="tag-${item.tag}">${safeMsg}</div>`;
                 });
 
                 resultsContainer.innerHTML = output;
 
             } catch (error) {
-                // Mensagem de erro robusta na interface
                 resultsContainer.innerHTML = `<div class="tag-erro font-bold p-3 border border-red-500 rounded-lg">
                     🚨 ERRO CRÍTICO!
                     <div class="font-normal mt-2 text-sm">${error.message}</div>
@@ -269,8 +282,14 @@
                     btn.classList.remove('opacity-50', 'cursor-not-allowed');
                 });
                 footerText.textContent = `Verificação concluída em ${duration} segundos.`;
-                lucide.createIcons(); // Re-cria os ícones (caso use Lucide em resultados futuros)
+                lucide.createIcons();
             }
+        }
+        
+        // Inicializa o estado de ordenação (escondido)
+        window.onload = () => {
+             sortControls.classList.add('hidden');
+             lucide.createIcons();
         }
     </script>
 </body>
