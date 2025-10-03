@@ -12,14 +12,18 @@ app = Flask(__name__)
 # O host é o IP Fixo compartilhado para ambas as VMs, conforme solicitado.
 FIXED_HOST = "186.211.103.3" 
 
+# Nome da tabela de notas (confirmado: "notas")
+NOTES_TABLE_NAME = "notas" 
+
 CONFIGURACOES_VM = {
     "221": {
         "HOST": FIXED_HOST,
         "DB_NAME": os.environ.get("DB_NAME_221", "postgres"),
-        "USER_OLD": os.environ.get("DB_USER_OLD", "postgres_old"), # Usando defaults genéricos para Vercel
+        "USER_OLD": os.environ.get("DB_USER_OLD", "postgres_old"),
         "PASS_OLD": os.environ.get("DB_PASS_OLD", "senha_antiga"),
         "USER_NEW": os.environ.get("DB_USER_NEW", "postgres_new"),
         "PASS_NEW": os.environ.get("DB_PASS_NEW", "senha_nova"),
+        "NOTES_TABLE": NOTES_TABLE_NAME # Tabela de notas
     },
     "222": {
         "HOST": FIXED_HOST,
@@ -27,6 +31,7 @@ CONFIGURACOES_VM = {
         # Credenciais padrão para a VM 222 (replicador, la@246618)
         "USER_DEFAULT": "replicador",
         "PASS_DEFAULT": "la@246618", 
+        "NOTES_TABLE": NOTES_TABLE_NAME # Tabela de notas
     }
 }
 
@@ -165,16 +170,20 @@ def verificar_por_nota(id_vm, porta):
     nome_empresa = empresas.get(porta, "N/A")
     hoje = datetime.now(timezone.utc).date()
     
+    # Obtém o nome da tabela configurado para a VM
+    notes_table = CONFIGURACOES_VM.get(id_vm, {}).get("NOTES_TABLE", NOTES_TABLE_NAME)
+    
     try:
         # Tenta a conexão com um timeout de 5 segundos
         with psycopg2.connect(**conn_details, connect_timeout=5) as conn:
             with conn.cursor() as cur:
-                # Consulta para pegar a data máxima da nota
-                cur.execute("SELECT MAX(CAST(datano AS date)) FROM notas;")
+                # Consulta para pegar a data máxima da nota, usando o nome da tabela configurado
+                query = f"SELECT MAX(CAST(datano AS date)) FROM {notes_table};"
+                cur.execute(query)
                 data_ultima = cur.fetchone()[0]
 
         if data_ultima is None:
-            return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ⚠️ AVISO: Tabela 'notas' vazia.", "tag": "aviso"}
+            return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ⚠️ AVISO: Tabela '{notes_table}' vazia.", "tag": "aviso"}
         
         dias_sem_dados = (hoje - data_ultima).days
         # Alerta se a nota for de 3 ou mais dias atrás
@@ -192,7 +201,9 @@ def verificar_por_nota(id_vm, porta):
     except psycopg2.OperationalError:
         return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ❗ CONEXÃO: Falha ao conectar/autenticar. (Host: {conn_details.get('host', 'N/A')})", "tag": "aviso"}
     except Exception as e:
-        return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ❌ ERRO GERAL: Falha ao consultar 'notas'. ({str(e).strip()})", "tag": "erro"}
+        # Retorna o erro exato, incluindo o problema da tabela
+        error_msg = str(e).strip().replace('\n', ' | ')
+        return {"porta": porta, "msg": f"[VM {id_vm}] {nome_empresa:<45} | ❌ ERRO GERAL: Falha ao consultar '{notes_table}'. ({error_msg})", "tag": "erro"}
 
 def verificar_tamanho_banco(id_vm, porta):
     """
